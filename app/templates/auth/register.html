@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Register | MAXEK ERP{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h1>Create account</h1>
+  <p class="muted">Register for MAXEK ERP Construction.</p>
+
+  <form method="post" novalidate>
+    {{ form.hidden_tag() }}
+
+    <label for="name">Full name</label>
+    {{ form.name(id="name") }}
+    {% for error in form.name.errors %}
+      <div class="errors">{{ error }}</div>
+    {% endfor %}
+
+    <label for="email">Email</label>
+    {{ form.email(id="email") }}
+    {% for error in form.email.errors %}
+      <div class="errors">{{ error }}</div>
+    {% endfor %}
+
+    <label for="password">Password</label>
+    {{ form.password(id="password") }}
+    {% for error in form.password.errors %}
+      <div class="errors">{{ error }}</div>
+    {% endfor %}
+
+    <label for="confirm_password">Confirm password</label>
+    {{ form.confirm_password(id="confirm_password") }}
+    {% for error in form.confirm_password.errors %}
+      <div class="errors">{{ error }}</div>
+    {% endfor %}
+
+    {{ form.submit(class="btn") }}
+  </form>
+
+  <p class="muted" style="margin-top: 16px;">
+    Already registered? <a href="{{ url_for('auth.login') }}">Sign in</a>
+  </p>
+</div>
+{% endblock %}

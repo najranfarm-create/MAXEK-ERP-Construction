@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | MAXEK ERP{% endblock %}
+
+{% block content %}
+<h1>Welcome, {{ user.name }}</h1>
+<p class="muted">Role: {{ user.role }}</p>
+<p>You are authenticated and can access protected ERP modules from here.</p>
+{% endblock %}
