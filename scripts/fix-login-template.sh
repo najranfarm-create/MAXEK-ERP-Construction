@@ -1,95 +1,60 @@
 #!/usr/bin/env bash
-# One-command fix for /login HTTP 500 — Jinja2 quote error in login.html line 18
-# Safe: backs up template, patches one line, restarts service, verifies.
+# Fix login.html line 18 — use direct /static/ path (nginx serves static; avoids Jinja quote bug)
 set -euo pipefail
 
 LOGIN="/var/www/maxek-erp/templates/login.html"
 SERVICE="maxek-erp.service"
 
-echo "=== MAXEK login.html direct patch ==="
+echo "=== Fix login.html (direct static path) ==="
 
-if [ ! -f "$LOGIN" ]; then
-  echo "ERROR: $LOGIN not found. Is this the correct server?"
-  exit 1
-fi
+[ -f "$LOGIN" ] || { echo "ERROR: $LOGIN not found"; exit 1; }
 
-BACKUP="${LOGIN}.bak.$(date +%Y%m%d%H%M%S)"
-cp -a "$LOGIN" "$BACKUP"
-echo "Backup: $BACKUP"
-echo "Line 18 before:"
-sed -n '15,22p' "$LOGIN"
-echo ""
+cp -a "$LOGIN" "${LOGIN}.bak.$(date +%Y%m%d%H%M%S)"
 
 python3 <<'PY'
 from pathlib import Path
+import re
 
 path = Path("/var/www/maxek-erp/templates/login.html")
-lines = path.read_text().splitlines(keepends=True)
-fixed = []
-changed = False
+text = path.read_text()
 
-GOOD = 'src="{{ url_for(\'static\', filename=\'images/maxek-logo.png\') }}"\n'
+# Replace any maxek-logo url_for line with plain static path
+text = re.sub(
+    r"^\s*src=.*maxek-logo\.png.*$",
+    '              src="/static/images/maxek-logo.png"',
+    text,
+    flags=re.MULTILINE,
+)
 
-for i, line in enumerate(lines):
-    if "maxek-logo.png" in line and "url_for" in line:
-        # Preserve leading whitespace (indentation)
-        indent = line[: len(line) - len(line.lstrip())]
-        new_line = indent + GOOD.lstrip()
-        if line != new_line:
-            changed = True
-            print(f"Fixed line {i + 1}")
-        fixed.append(new_line)
-    else:
-        fixed.append(line)
+path.write_text(text)
+print("Patched logo src → /static/images/maxek-logo.png")
 
-if not changed:
-    # Fallback: fix line 18 directly if it contains url_for + static
-    for i, line in enumerate(lines):
-        if i == 17 and "url_for" in line and "static" in line:
-            indent = line[: len(line) - len(line.lstrip())]
-            lines[i] = indent + GOOD.lstrip()
-            changed = True
-            print(f"Fixed line 18 (fallback)")
-            break
-    fixed = lines
-
-path.write_text("".join(fixed))
-print("Done.")
+# Validate template compiles
+from jinja2 import Environment, FileSystemLoader
+env = Environment(loader=FileSystemLoader("/var/www/maxek-erp/templates"))
+try:
+    env.get_template("login.html")
+    print("Jinja2 compile: OK")
+except Exception as e:
+    print(f"Jinja2 compile: FAILED — {e}")
+    raise SystemExit(1)
 PY
 
 echo ""
-echo "Line 18 after:"
+echo "Line 15-22:"
 sed -n '15,22p' "$LOGIN"
 echo ""
 
-echo "Restarting $SERVICE ..."
 systemctl restart "$SERVICE"
 sleep 2
 
-if ! systemctl is-active --quiet "$SERVICE"; then
-  echo "ERROR: service failed to start. Restoring backup..."
-  cp -a "$BACKUP" "$LOGIN"
-  systemctl restart "$SERVICE"
-  exit 1
-fi
+code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/login)
+echo "GET /login → HTTP $code"
 
-LOCAL=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/login || echo "000")
-PUBLIC=$(curl -s -o /dev/null -w "%{http_code}" https://erp.maxekindia.com/login 2>/dev/null || echo "000")
-
-echo ""
-echo "Results:"
-echo "  http://127.0.0.1:8000/login          → HTTP $LOCAL"
-echo "  https://erp.maxekindia.com/login     → HTTP $PUBLIC"
-
-if [ "$LOCAL" = "200" ] || [ "$LOCAL" = "302" ]; then
-  echo ""
-  echo "SUCCESS — login page is working."
-  exit 0
+if [ "$code" = "200" ] || [ "$code" = "302" ]; then
+  echo "SUCCESS"
 else
-  echo ""
-  echo "Still failing. Restoring backup and showing logs:"
-  cp -a "$BACKUP" "$LOGIN"
-  systemctl restart "$SERVICE"
-  journalctl -u "$SERVICE" -n 20 --no-pager
+  echo "FAILED — latest log:"
+  journalctl -u "$SERVICE" -n 15 --no-pager
   exit 1
 fi
