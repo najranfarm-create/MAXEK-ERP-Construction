@@ -71,12 +71,39 @@ curl -I https://erp.maxekindia.com/static/css/maxek-login.css
 
 Expected: login `200` or `302`; static `200` on both local and public.
 
+## Status after routing fix (2026-07-07)
+
+| Check | Result |
+|-------|--------|
+| `https://erp.maxekindia.com/static/css/maxek-login.css` | **200** — Nginx static routing fixed |
+| `http://127.0.0.1:8000/static/css/maxek-login.css` | **200** — Gunicorn static OK |
+| `http://127.0.0.1:8000/login` | **500** — application error (not Nginx) |
+| `https://erp.maxekindia.com/login` | **500** — same app error |
+
+**Do not paste Nginx or systemd config into the terminal.** The fix script already applied those. Config blocks belong in `/etc/nginx/sites-available/` and `/etc/systemd/system/`, not bash.
+
 ## If login still returns 500
 
-Routing is fixed separately from app errors. Check Gunicorn logs:
+Routing is fixed. The remaining issue is inside the Flask app at `/var/www/maxek-erp`.
 
 ```bash
-sudo journalctl -u maxek-erp.service -n 50 --no-pager
+cd /tmp/maxek-routing-fix   # or re-clone the branch
+sudo bash scripts/diagnose-login-500.sh
 ```
 
-Common non-routing causes: database connection, missing `.env`, Python import errors in the original ERP app.
+Or manually:
+
+```bash
+sudo journalctl -u maxek-erp.service -n 100 --no-pager
+curl http://127.0.0.1:8000/login
+```
+
+Watch journalctl while curling — the Python traceback shows the real cause (database, template, import, `.env`, etc.).
+
+Temporary debug server (does not affect production on :8000):
+
+```bash
+cd /var/www/maxek-erp
+.venv/bin/flask --app wsgi:app run --host 127.0.0.1 --port 5001 --debug
+# other terminal: curl http://127.0.0.1:5001/login
+```
