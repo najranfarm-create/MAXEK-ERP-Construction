@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}MAXEK ERP Construction{% endblock %}
+
+{% block content %}
+<h1>Construction ERP for MAXEK</h1>
+<p class="muted">Manage projects, sites, materials, and teams from one place.</p>
+
+{% if current_user.is_authenticated %}
+  <p><a href="{{ url_for('main.dashboard') }}">Go to dashboard</a></p>
+{% else %}
+  <p><a href="{{ url_for('auth.login') }}">Sign in to get started</a></p>
+{% endif %}
+{% endblock %}

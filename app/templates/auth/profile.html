@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Profile | MAXEK ERP{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h1>Your profile</h1>
+  <p class="muted">Signed in as {{ user.email }} ({{ user.role }})</p>
+
+  <form method="post" novalidate>
+    {{ form.hidden_tag() }}
+
+    <label for="name">Full name</label>
+    {{ form.name(id="name") }}
+    {% for error in form.name.errors %}
+      <div class="errors">{{ error }}</div>
+    {% endfor %}
+
+    {{ form.submit(class="btn") }}
+  </form>
+</div>
+{% endblock %}
