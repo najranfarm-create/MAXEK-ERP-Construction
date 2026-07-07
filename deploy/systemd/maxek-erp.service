@@ -1,0 +1,21 @@
+[Unit]
+Description=MAXEK ERP (Gunicorn) — original app at /var/www/maxek-erp
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/maxek-erp
+Environment="PATH=/var/www/maxek-erp/.venv/bin"
+EnvironmentFile=-/var/www/maxek-erp/.env
+ExecStart=/var/www/maxek-erp/.venv/bin/gunicorn \
+    --workers 2 \
+    --bind 127.0.0.1:8000 \
+    --timeout 120 \
+    wsgi:app
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
