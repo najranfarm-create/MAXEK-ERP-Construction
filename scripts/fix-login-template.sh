@@ -1,66 +1,95 @@
 #!/usr/bin/env bash
-# Fix Jinja2 TemplateSyntaxError on login.html line 18 (quote conflict in url_for)
-# ONLY patches /var/www/maxek-erp/templates/login.html — backs up first.
+# One-command fix for /login HTTP 500 — Jinja2 quote error in login.html line 18
+# Safe: backs up template, patches one line, restarts service, verifies.
 set -euo pipefail
 
-LOGIN_TEMPLATE="/var/www/maxek-erp/templates/login.html"
+LOGIN="/var/www/maxek-erp/templates/login.html"
+SERVICE="maxek-erp.service"
 
-if [ ! -f "$LOGIN_TEMPLATE" ]; then
-  echo "ERROR: $LOGIN_TEMPLATE not found"
+echo "=== MAXEK login.html direct patch ==="
+
+if [ ! -f "$LOGIN" ]; then
+  echo "ERROR: $LOGIN not found. Is this the correct server?"
   exit 1
 fi
 
-cp -a "$LOGIN_TEMPLATE" "${LOGIN_TEMPLATE}.bak.$(date +%Y%m%d%H%M%S)"
-echo "Backup created."
+BACKUP="${LOGIN}.bak.$(date +%Y%m%d%H%M%S)"
+cp -a "$LOGIN" "$BACKUP"
+echo "Backup: $BACKUP"
+echo "Line 18 before:"
+sed -n '15,22p' "$LOGIN"
+echo ""
 
-echo "Before (line 18 area):"
-grep -n "url_for" "$LOGIN_TEMPLATE" | head -5 || true
-
-# Fix: use double quotes inside url_for when HTML attr uses double quotes
-# Handles common broken patterns with nested single quotes
 python3 <<'PY'
 from pathlib import Path
-import re
 
 path = Path("/var/www/maxek-erp/templates/login.html")
-text = path.read_text()
+lines = path.read_text().splitlines(keepends=True)
+fixed = []
+changed = False
 
-# Pattern 1: single-quoted attr wrapping single-quoted url_for (broken)
-text = re.sub(
-    r"src='(\{\{\s*)url_for\('static',\s*filename='([^']+)'\)\s*(\}\})'",
-    r'src="\1url_for(\'static\', filename=\'\2\')\3"',
-    text,
-)
+GOOD = 'src="{{ url_for(\'static\', filename=\'images/maxek-logo.png\') }}"\n'
 
-# Pattern 2: normalize logo line to known-good form
-text = re.sub(
-    r'src="?\{\{\s*url_for\([^)]*maxek-logo\.png[^)]*\)\s*\}\}"?',
-    r'src="{{ url_for(\'static\', filename=\'images/maxek-logo.png\') }}"',
-    text,
-)
-text = re.sub(
-    r"src='?\{\{\s*url_for\([^)]*maxek-logo\.png[^)]*\)\s*\}\}'?",
-    r'src="{{ url_for(\'static\', filename=\'images/maxek-logo.png\') }}"',
-    text,
-)
+for i, line in enumerate(lines):
+    if "maxek-logo.png" in line and "url_for" in line:
+        # Preserve leading whitespace (indentation)
+        indent = line[: len(line) - len(line.lstrip())]
+        new_line = indent + GOOD.lstrip()
+        if line != new_line:
+            changed = True
+            print(f"Fixed line {i + 1}")
+        fixed.append(new_line)
+    else:
+        fixed.append(line)
 
-path.write_text(text)
-print("Patched login.html")
+if not changed:
+    # Fallback: fix line 18 directly if it contains url_for + static
+    for i, line in enumerate(lines):
+        if i == 17 and "url_for" in line and "static" in line:
+            indent = line[: len(line) - len(line.lstrip())]
+            lines[i] = indent + GOOD.lstrip()
+            changed = True
+            print(f"Fixed line 18 (fallback)")
+            break
+    fixed = lines
+
+path.write_text("".join(fixed))
+print("Done.")
 PY
 
 echo ""
-echo "After:"
-grep -n "maxek-logo" "$LOGIN_TEMPLATE" || true
-
+echo "Line 18 after:"
+sed -n '15,22p' "$LOGIN"
 echo ""
-echo "Restarting gunicorn..."
-systemctl restart maxek-erp.service
+
+echo "Restarting $SERVICE ..."
+systemctl restart "$SERVICE"
 sleep 2
 
-code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/login)
-echo "GET /login → HTTP $code"
-if [ "$code" = "200" ] || [ "$code" = "302" ]; then
-  echo "SUCCESS"
+if ! systemctl is-active --quiet "$SERVICE"; then
+  echo "ERROR: service failed to start. Restoring backup..."
+  cp -a "$BACKUP" "$LOGIN"
+  systemctl restart "$SERVICE"
+  exit 1
+fi
+
+LOCAL=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/login || echo "000")
+PUBLIC=$(curl -s -o /dev/null -w "%{http_code}" https://erp.maxekindia.com/login 2>/dev/null || echo "000")
+
+echo ""
+echo "Results:"
+echo "  http://127.0.0.1:8000/login          → HTTP $LOCAL"
+echo "  https://erp.maxekindia.com/login     → HTTP $PUBLIC"
+
+if [ "$LOCAL" = "200" ] || [ "$LOCAL" = "302" ]; then
+  echo ""
+  echo "SUCCESS — login page is working."
+  exit 0
 else
-  echo "Still failing — run: journalctl -u maxek-erp.service -n 30 --no-pager"
+  echo ""
+  echo "Still failing. Restoring backup and showing logs:"
+  cp -a "$BACKUP" "$LOGIN"
+  systemctl restart "$SERVICE"
+  journalctl -u "$SERVICE" -n 20 --no-pager
+  exit 1
 fi
