@@ -105,3 +105,28 @@ gunicorn -w 4 -b 0.0.0.0:8000 "run:app"
 ```
 
 Set `FLASK_ENV=production` and a strong `SECRET_KEY` in production.
+
+## Troubleshooting Internal Server Error (500)
+
+On the server, run:
+
+```bash
+cd /var/www/maxek-erp-flask
+git pull origin cursor/auth-setup-flask-0620
+bash scripts/diagnose.sh
+.venv/bin/flask --app run init-db
+.venv/bin/flask --app run run --host 127.0.0.1 --port 5000 --debug
+```
+
+Then open the site again — the terminal will show the real traceback.
+
+**Common fix:** relative SQLite path in `.env`. Use an absolute path:
+
+```bash
+nano /var/www/maxek-erp-flask/.env
+# Set:
+# DATABASE_URL=sqlite:////var/www/maxek-erp-flask/maxek_erp.db
+.venv/bin/flask --app run init-db
+```
+
+Check health: `curl http://127.0.0.1:5000/health`

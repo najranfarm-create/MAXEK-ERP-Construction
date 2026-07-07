@@ -53,6 +53,13 @@ fi
 echo "==> Initializing database"
 .venv/bin/flask --app run init-db
 
+# Ensure SQLite uses absolute path (avoids 500 errors under gunicorn)
+if grep -q '^DATABASE_URL=sqlite:///maxek_erp.db' .env 2>/dev/null; then
+  sed -i "s|^DATABASE_URL=sqlite:///maxek_erp.db|DATABASE_URL=sqlite:///${APP_DIR}/maxek_erp.db|" .env
+  echo "==> Updated .env DATABASE_URL to absolute path"
+  .venv/bin/flask --app run init-db
+fi
+
 echo ""
 echo "Setup complete."
 echo ""

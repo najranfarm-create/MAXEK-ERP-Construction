@@ -1,3 +1,4 @@
+import logging
 import os
 
 from flask import Flask
@@ -7,6 +8,8 @@ from app.config import config_by_name
 from app.extensions import db, login_manager
 from app.main import main_bp
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 
 def create_app(config_name: str | None = None) -> Flask:
@@ -20,6 +23,11 @@ def create_app(config_name: str | None = None) -> Flask:
     @login_manager.user_loader
     def load_user(user_id: str) -> User | None:
         return db.session.get(User, int(user_id))
+
+    @app.errorhandler(Exception)
+    def log_unhandled_exception(error: Exception):
+        logger.exception("Unhandled error: %s", error)
+        raise error
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
