@@ -83,6 +83,8 @@ UI_FILES=(
   templates/approvals.html
   static/js/approvals-bulk.js
   static/js/attendance-module-tabs.js
+  templates/partials/petty_cash_line_items.html
+  static/js/petty-cash-lines.js
 )
 
 WORKFLOW_FILES=(
@@ -138,6 +140,12 @@ if [[ -x "${SCRIPT_DIR}/inject-attendance-tabs.sh" ]]; then
   LIVE="${LIVE}" bash "${SCRIPT_DIR}/inject-attendance-tabs.sh"
 elif [[ -f "${PATCH_ROOT}/../inject-attendance-tabs.sh" ]]; then
   LIVE="${LIVE}" bash "${PATCH_ROOT}/../inject-attendance-tabs.sh"
+fi
+
+if [[ -x "${SCRIPT_DIR}/inject-petty-cash-lines.sh" ]]; then
+  LIVE="${LIVE}" bash "${SCRIPT_DIR}/inject-petty-cash-lines.sh"
+elif [[ -f "${PATCH_ROOT}/../inject-petty-cash-lines.sh" ]]; then
+  LIVE="${LIVE}" bash "${PATCH_ROOT}/../inject-petty-cash-lines.sh"
 fi
 
 echo "==> Restarting maxek-erp.service"

@@ -2676,6 +2676,23 @@ def ensure_petty_cash_tables(db):
     ):
         _ensure_column(db, "petty_cash_transfers", column, col_type)
     db.execute("""
+        CREATE TABLE IF NOT EXISTS petty_cash_request_lines(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            request_id INTEGER NOT NULL,
+            line_no INTEGER NOT NULL DEFAULT 1,
+            purpose TEXT,
+            amount REAL DEFAULT 0,
+            FOREIGN KEY(request_id) REFERENCES petty_cash_requests(id) ON DELETE CASCADE
+        )
+    """)
+    for column, col_type in (
+        ("request_id", "INTEGER"),
+        ("line_no", "INTEGER"),
+        ("purpose", "TEXT"),
+        ("amount", "REAL DEFAULT 0"),
+    ):
+        _ensure_column(db, "petty_cash_request_lines", column, col_type)
+    db.execute("""
         CREATE TABLE IF NOT EXISTS petty_cash_expenses(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             request_id INTEGER NOT NULL,
@@ -3874,7 +3891,98 @@ def _petty_cash_can_delete_request(request_row):
     return False
 
 
+def _parse_petty_cash_line_items():
+    """Parse multi-row purpose/amount lines from the request form."""
+    purposes = request.form.getlist("purpose_line[]")
+    amounts = request.form.getlist("amount_line[]")
+    row_count = max(len(purposes), len(amounts))
+    lines = []
+    for idx in range(row_count):
+        purpose = (purposes[idx] if idx < len(purposes) else "").strip()
+        amount_raw = (amounts[idx] if idx < len(amounts) else "0").strip()
+        try:
+            amount_val = float(amount_raw or 0)
+        except ValueError:
+            amount_val = 0.0
+        if not purpose and amount_val <= 0:
+            continue
+        lines.append({
+            "line_no": len(lines) + 1,
+            "purpose": purpose,
+            "amount": round(amount_val, 2),
+        })
+    return lines
+
+
+def _aggregate_petty_cash_line_items(lines):
+    if not lines:
+        return "", "", 0.0
+    purposes = [line["purpose"] for line in lines if line.get("purpose")]
+    total = round(sum(float(line.get("amount") or 0) for line in lines), 2)
+    combined_purpose = (
+        purposes[0]
+        if len(purposes) == 1
+        else "; ".join(purposes)
+    )
+    description = "\n".join(
+        f"{line['line_no']}. {line['purpose']}: {line['amount']:,.2f}"
+        for line in lines
+    )
+    return combined_purpose, description, total
+
+
+def _save_petty_cash_request_lines(db, request_id, lines):
+    db.execute(
+        "DELETE FROM petty_cash_request_lines WHERE request_id=?",
+        (request_id,),
+    )
+    for line in lines:
+        db.execute(
+            "INSERT INTO petty_cash_request_lines("
+            "request_id, line_no, purpose, amount"
+            ") VALUES(?,?,?,?)",
+            (
+                request_id,
+                line["line_no"],
+                line["purpose"],
+                line["amount"],
+            ),
+        )
+
+
+def _load_petty_cash_request_lines(db, request_id):
+    if not request_id:
+        return []
+    rows = query_db(
+        "SELECT id, request_id, line_no, purpose, amount "
+        "FROM petty_cash_request_lines WHERE request_id=? "
+        "ORDER BY line_no, id",
+        (request_id,),
+    )
+    if rows:
+        return rows
+    header = db.execute(
+        "SELECT purpose, description, required_amount FROM petty_cash_requests WHERE id=?",
+        (request_id,),
+    ).fetchone()
+    if not header or not (header["purpose"] or header["required_amount"]):
+        return []
+    return [{
+        "line_no": 1,
+        "purpose": header["purpose"] or "",
+        "amount": float(header["required_amount"] or 0),
+    }]
+
+
 def _parse_petty_cash_request_form():
+    line_items = _parse_petty_cash_line_items()
+    combined_purpose, line_summary, line_total = _aggregate_petty_cash_line_items(
+        line_items
+    )
+    required_amount = request.form.get("required_amount", "").strip()
+    if not required_amount and line_total > 0:
+        required_amount = str(line_total)
+    purpose = combined_purpose or request.form.get("purpose", "").strip()
     return {
         "request_date": request.form.get("request_date", "").strip(),
         "project_id": request.form.get("project_id") or None,
@@ -3882,11 +3990,12 @@ def _parse_petty_cash_request_form():
         "staff_name": request.form.get("staff_name", "").strip(),
         "employee_code": request.form.get("employee_code", "").strip(),
         "department": request.form.get("department", "").strip(),
-        "purpose": request.form.get("purpose", "").strip(),
-        "description": request.form.get("description", "").strip(),
-        "required_amount": request.form.get("required_amount", "0").strip(),
+        "purpose": purpose,
+        "description": line_summary,
+        "required_amount": required_amount,
         "priority": request.form.get("priority", "Normal").strip() or "Normal",
         "remarks": request.form.get("remarks", "").strip(),
+        "line_items": line_items,
     }
 
 
@@ -13544,8 +13653,10 @@ def _resolve_attendance_tab(
     edit_monthly_id,
 ) -> str:
     requested = (request.args.get("tab") or "").strip().lower()
-    if view_id or edit_id:
+    if edit_id:
         return "entry"
+    if view_id:
+        return "saved"
     if view_monthly_id or edit_monthly_id:
         return "monthly"
     if requested in ("entry", "saved", "monthly"):
@@ -13889,6 +14000,7 @@ def petty_cash():
             db.execute("DELETE FROM petty_cash_attachments WHERE request_id=?", (request_id,))
             db.execute("DELETE FROM petty_cash_expenses WHERE request_id=?", (request_id,))
             db.execute("DELETE FROM petty_cash_transfers WHERE request_id=?", (request_id,))
+            db.execute("DELETE FROM petty_cash_request_lines WHERE request_id=?", (request_id,))
             db.execute("DELETE FROM approval_requests WHERE module_id=? AND record_id=? AND record_table=?", (
                 module_id, request_id, record_table,
             ))
@@ -13899,6 +14011,7 @@ def petty_cash():
 
         if form_action in ("save_draft", "submit_request", "save_request"):
             payload = _parse_petty_cash_request_form()
+            line_items = payload.get("line_items") or []
             try:
                 amount_val = float(payload["required_amount"] or 0)
             except ValueError:
@@ -13907,11 +14020,11 @@ def petty_cash():
             if not payload["request_date"]:
                 flash("Request date is required.")
                 return redirect(request.referrer or url_for("petty_cash", new=1))
-            if not payload["purpose"]:
-                flash("Purpose is required.")
+            if not line_items:
+                flash("Add at least one purpose line with amount.")
                 return redirect(request.referrer or url_for("petty_cash", new=1))
             if amount_val <= 0:
-                flash("Required amount must be greater than zero.")
+                flash("Total amount must be greater than zero.")
                 return redirect(request.referrer or url_for("petty_cash", new=1))
 
             now = _petty_cash_timestamp()
@@ -13939,6 +14052,7 @@ def petty_cash():
                         username, now, request_id,
                     ),
                 )
+                _save_petty_cash_request_lines(db, int(request_id), line_items)
                 if submit_now:
                     existing_req = db.execute(
                         "SELECT id FROM approval_requests WHERE module_id=? AND record_id=? AND record_table=?",
@@ -13974,6 +14088,7 @@ def petty_cash():
                 ),
             )
             new_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+            _save_petty_cash_request_lines(db, new_id, line_items)
             if submit_now:
                 create_approval_request(
                     db, module_id, new_id, record_table, username, user_id,
@@ -14362,6 +14477,13 @@ def petty_cash():
     can_record_transfer = (
         _petty_cash_can_record_transfer(view_record) if view_record else False
     )
+    request_lines = []
+    if view_id:
+        request_lines = _load_petty_cash_request_lines(db, view_id)
+    elif edit_id:
+        request_lines = _load_petty_cash_request_lines(db, edit_id)
+    if not request_lines:
+        request_lines = [{"line_no": 1, "purpose": "", "amount": 0}]
 
     return render_template(
         "petty_cash.html",
@@ -14403,6 +14525,7 @@ def petty_cash():
         is_admin=is_admin_user(),
         module_id=module_id,
         record_table=record_table,
+        request_lines=request_lines,
     )
 
 

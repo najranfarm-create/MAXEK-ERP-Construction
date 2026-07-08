@@ -79,7 +79,9 @@ for f in \
   templates/partials/attendance_module_tabs.html \
   templates/approvals.html \
   static/js/approvals-bulk.js \
-  static/js/attendance-module-tabs.js
+  static/js/attendance-module-tabs.js \
+  templates/partials/petty_cash_line_items.html \
+  static/js/petty-cash-lines.js
 do
   src="${PATCH}/${f}"
   dst="${LIVE}/${f}"
@@ -107,6 +109,10 @@ fi
 
 if [[ -f "${STAGING}/deploy/inject-attendance-tabs.sh" ]]; then
   LIVE="${LIVE}" bash "${STAGING}/deploy/inject-attendance-tabs.sh"
+fi
+
+if [[ -f "${STAGING}/deploy/inject-petty-cash-lines.sh" ]]; then
+  LIVE="${LIVE}" bash "${STAGING}/deploy/inject-petty-cash-lines.sh"
 fi
 
 # 5) Restart + diagnose
