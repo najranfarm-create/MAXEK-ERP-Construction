@@ -1,0 +1,70 @@
+{# Multi-line Purpose + Amount grid (replaces separate Description field) #}
+{% set line_rows = request_lines|default([{'line_no': 1, 'purpose': '', 'amount': 0}]) %}
+<div class="petty-cash-line-items" data-petty-cash-lines>
+  <div class="petty-cash-line-items__header">
+    <h4 class="erp-form-subtitle">Purpose &amp; Amount</h4>
+    <button type="button" class="erp-btn erp-btn-ghost erp-btn-sm" data-petty-cash-add-row>
+      <i class="fa-solid fa-plus" aria-hidden="true"></i> Insert New Row
+    </button>
+  </div>
+  <div class="petty-cash-line-items__grid">
+    <div class="petty-cash-line-items__row petty-cash-line-items__row--head">
+      <span class="petty-cash-line-col petty-cash-line-col--sl">Sl No</span>
+      <span class="petty-cash-line-col petty-cash-line-col--purpose">Purpose</span>
+      <span class="petty-cash-line-col petty-cash-line-col--amount">Amount</span>
+      <span class="petty-cash-line-col petty-cash-line-col--action" aria-hidden="true"></span>
+    </div>
+    <div class="petty-cash-line-items__body" data-petty-cash-lines-body>
+      {% for line in line_rows %}
+      <div class="petty-cash-line-items__row" data-petty-cash-line-row>
+        <div class="petty-cash-line-col petty-cash-line-col--sl">
+          <span class="petty-cash-line-sl" data-petty-cash-line-sl>{{ line.line_no or loop.index }}</span>
+        </div>
+        <div class="petty-cash-line-col petty-cash-line-col--purpose">
+          <input
+            type="text"
+            name="purpose_line[]"
+            class="erp-input petty-cash-line-purpose"
+            value="{{ line.purpose or '' }}"
+            placeholder="Enter purpose"
+            {% if view_record %}readonly{% endif %}
+          >
+        </div>
+        <div class="petty-cash-line-col petty-cash-line-col--amount">
+          <input
+            type="number"
+            name="amount_line[]"
+            class="erp-input petty-cash-line-amount"
+            value="{{ line.amount if line.amount is not none else '' }}"
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+            {% if view_record %}readonly{% endif %}
+          >
+        </div>
+        <div class="petty-cash-line-col petty-cash-line-col--action">
+          {% if not view_record %}
+          <button type="button" class="erp-btn erp-btn-ghost erp-btn-sm petty-cash-line-remove" data-petty-cash-remove-row title="Remove row" aria-label="Remove row">
+            <i class="fa-solid fa-minus" aria-hidden="true"></i>
+          </button>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="petty-cash-line-items__total">
+    <label for="petty_cash_total_amount">Total Amount</label>
+    <input
+      type="number"
+      id="petty_cash_total_amount"
+      name="required_amount"
+      class="erp-input petty-cash-line-total"
+      value="{{ (edit_record or view_record).required_amount if (edit_record or view_record) else '' }}"
+      min="0"
+      step="0.01"
+      readonly
+    >
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/petty-cash-lines.js') }}?v=20260708-pc-lines" defer></script>

@@ -1,0 +1,173 @@
+{% extends 'base_maxek.html' %}
+{% set page_title = 'Settings' %}
+{% set breadcrumbs = '<a href="' ~ url_for('dashboard') ~ '">Home</a> &gt; Settings' %}
+{% set prefs = user_dashboard_prefs if user_dashboard_prefs is mapping else (user_dashboard_prefs or {}) %}
+{% block content %}
+<div class="settings-dashboard-layout erp-module-layout">
+  <nav class="settings-page-toolbar approval-tab-bar" aria-label="Settings sections">
+    <a href="#settings-modules" class="erp-tab active">Modules</a>
+    <a href="#company-settings" class="erp-tab">Company</a>
+    <a href="#dashboard-display" class="erp-tab">Dashboard display</a>
+    <a href="#dashboard-preferences" class="erp-tab">My preferences</a>
+    {% if can_edit_tenant_settings %}<a href="#tenant-branding" class="erp-tab">Tenant branding</a>{% endif %}
+    <a href="#department-master" class="erp-tab">Departments</a>
+  </nav>
+
+  <section class="erp-form-card settings-actions-card" id="settings-modules">
+    <h3 class="erp-form-title">Settings modules</h3>
+    <p class="erp-form-section-help">Open master data, workflow, and administration screens.</p>
+    <div class="settings-action-grid" id="settings-modules">
+      {% for item in sub_toolbar_items|default([]) %}
+      {% set item_endpoint = item.endpoint if item is mapping else item.get('endpoint', '') %}
+      {% set item_label = item.label if item is mapping else item.get('label', item_endpoint) %}
+      {% set item_icon = (item.icon if item is mapping else item.get('icon')) or 'fa-gear' %}
+      <a class="settings-action-card erp-btn erp-btn-ghost" href="{{ safe_url_for(item_endpoint) }}">
+        <i class="fa-solid {{ item_icon }}"></i>
+        <span>{{ item_label }}</span>
+      </a>
+      {% else %}
+      <a class="settings-action-card" href="{{ safe_url_for('user_settings') }}"><i class="fa-solid fa-user-gear"></i><span>Users</span></a>
+      <a class="settings-action-card" href="{{ safe_url_for('workflow_settings') }}"><i class="fa-solid fa-diagram-project"></i><span>Workflow settings</span></a>
+      <a class="settings-action-card" href="{{ safe_url_for('company_master') }}"><i class="fa-solid fa-building-columns"></i><span>Company master</span></a>
+      {% endfor %}
+    </div>
+  </section>
+
+  <div class="settings-module-layout erp-form-grid">
+    <section class="erp-form-card" id="company-settings">
+      <h3 class="erp-form-title">Company settings</h3>
+      <form method="post" class="erp-form-grid">
+        <input type="hidden" name="form_type" value="company">
+        <div class="erp-field span-2">
+          <select name="timezone" class="has-value">
+            {% for tz_value, tz_label in timezone_options|default([]) %}
+            <option value="{{ tz_value }}"{% if tz_value == current_timezone %} selected{% endif %}>{{ tz_label }}</option>
+            {% endfor %}
+          </select>
+          <label>Application timezone</label>
+        </div>
+        <div class="erp-form-actions span-2">
+          <button type="submit" class="erp-btn erp-btn-primary">Save company settings</button>
+        </div>
+      </form>
+      <p class="erp-form-section-help">Server time: {{ app_now_display|default('—') }}</p>
+    </section>
+
+    <section class="erp-form-card" id="dashboard-display">
+      <h3 class="erp-form-title">Dashboard display (global)</h3>
+      <form method="post" class="erp-form-grid">
+        <input type="hidden" name="form_type" value="dashboard_display">
+        {% for key, label in dashboard_display_options|default([]) %}
+        <label class="erp-field span-2 settings-checkbox-row">
+          <input type="checkbox" name="dash_{{ key }}"{% if dashboard_display.get(key) %} checked{% endif %}>
+          <span>{{ label }}</span>
+        </label>
+        {% endfor %}
+        <div class="erp-form-actions span-2">
+          <button type="submit" class="erp-btn erp-btn-primary">Save display settings</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <section class="erp-form-card" id="dashboard-preferences">
+    <h3 class="erp-form-title">My dashboard preferences</h3>
+    <form method="post" class="erp-form-grid">
+      <input type="hidden" name="form_type" value="user_dashboard_preferences">
+      <div class="erp-field">
+        <input type="text" name="role_profile" value="{{ prefs.get('role_profile', 'default') if prefs is mapping else (prefs.role_profile|default('default')) }}" class="has-value">
+        <label>Role profile</label>
+      </div>
+      <div class="erp-field">
+        <input type="text" name="dashboard_layout_theme" value="{{ prefs.get('dashboard_layout_theme', '') if prefs is mapping else (prefs.dashboard_layout_theme|default('')) }}" class="has-value">
+        <label>Layout theme</label>
+      </div>
+      <p class="erp-form-section-help span-2">
+        {% if dashboard_theme_options %}
+        Available themes:
+        {% for opt in dashboard_theme_options %}
+          {% if opt is mapping %}{{ opt.label or opt.value or opt.key }}{% elif opt is string %}{{ opt }}{% else %}{{ opt[1] if opt|length > 1 else opt[0] }}{% endif %}{% if not loop.last %}, {% endif %}
+        {% endfor %}
+        {% else %}
+        Leave layout theme blank to use the default dashboard layout.
+        {% endif %}
+      </p>
+      <div class="erp-form-actions span-2">
+        <button type="submit" class="erp-btn erp-btn-primary">Save my preferences</button>
+      </div>
+    </form>
+  </section>
+
+  {% if can_edit_tenant_settings and tenant_settings %}
+  <section class="erp-form-card" id="tenant-branding">
+    <h3 class="erp-form-title">Tenant branding</h3>
+    <form method="post" class="erp-form-grid">
+      <input type="hidden" name="form_type" value="tenant_branding">
+      <div class="erp-field">
+        <input type="text" name="tenant_company_name" value="{{ tenant_settings.get('company_name', '') if tenant_settings is mapping else (tenant_settings.company_name|default('')) }}" class="has-value">
+        <label>Company display name</label>
+      </div>
+      <div class="erp-field">
+        <input type="text" name="tenant_currency" value="{{ tenant_settings.get('currency', '') if tenant_settings is mapping else (tenant_settings.currency|default('')) }}" class="has-value">
+        <label>Currency</label>
+      </div>
+      <div class="erp-field span-2">
+        <input type="text" name="tenant_address" value="{{ tenant_settings.get('address', '') if tenant_settings is mapping else (tenant_settings.address|default('')) }}" class="has-value">
+        <label>Address</label>
+      </div>
+      <div class="erp-form-actions span-2">
+        <button type="submit" class="erp-btn erp-btn-primary">Save tenant branding</button>
+      </div>
+    </form>
+  </section>
+  {% endif %}
+
+  <section class="erp-form-card erp-table-panel" id="department-master">
+    <h3 class="erp-form-title">Department master (quick add)</h3>
+    <form method="post" class="erp-form-grid">
+      <input type="hidden" name="form_type" value="department">
+      <div class="erp-field">
+        <input type="text" name="department_name" required>
+        <label>Department name</label>
+      </div>
+      <div class="erp-field">
+        <input type="text" name="description">
+        <label>Description</label>
+      </div>
+      <div class="erp-field">
+        <select name="status" class="has-value">
+          <option value="Active">Active</option>
+          <option value="Inactive">Inactive</option>
+        </select>
+        <label>Status</label>
+      </div>
+      <div class="erp-form-actions span-2">
+        <button type="submit" class="erp-btn erp-btn-primary">Add department</button>
+        <a href="{{ safe_url_for('department_master') }}" class="erp-btn erp-btn-ghost">Open full department master</a>
+      </div>
+    </form>
+    <div class="erp-table-scroll settings-dept-table">
+      <table class="erp-table erp-table-module">
+        <thead>
+          <tr>
+            <th>Department</th>
+            <th>Description</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for dept in departments|default([]) %}
+          <tr>
+            <td>{{ dept.department_name if dept is mapping else (dept['department_name'] if 'department_name' in dept else dept.get('name', '—')) }}</td>
+            <td>{{ (dept.description if dept is mapping else dept.get('description')) or '—' }}</td>
+            <td>{{ (dept.status if dept is mapping else dept.get('status')) or 'Active' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3">No departments yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

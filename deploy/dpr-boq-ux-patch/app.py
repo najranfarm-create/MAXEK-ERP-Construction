@@ -2549,6 +2549,16 @@ def _backfill_petty_cash_legacy_columns(db):
             "UPDATE petty_cash_requests SET approval_status='Draft' "
             "WHERE approval_status IS NULL OR TRIM(approval_status)=''"
         )
+        db.execute(
+            "UPDATE petty_cash_requests SET status='Approved' "
+            "WHERE status='Submitted' AND approval_status=?",
+            (RECORD_APPROVED,),
+        )
+        db.execute(
+            "UPDATE petty_cash_requests SET status='Rejected' "
+            "WHERE status='Submitted' AND approval_status IN (?, ?)",
+            (RECORD_REJECTED_CHECKER, RECORD_REJECTED_APPROVER),
+        )
     if "project_id" in cols and "project_name" in cols:
         db.execute(
             "UPDATE petty_cash_requests SET project_id=("
@@ -2665,6 +2675,23 @@ def ensure_petty_cash_tables(db):
         ("created_at", "TEXT"),
     ):
         _ensure_column(db, "petty_cash_transfers", column, col_type)
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS petty_cash_request_lines(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            request_id INTEGER NOT NULL,
+            line_no INTEGER NOT NULL DEFAULT 1,
+            purpose TEXT,
+            amount REAL DEFAULT 0,
+            FOREIGN KEY(request_id) REFERENCES petty_cash_requests(id) ON DELETE CASCADE
+        )
+    """)
+    for column, col_type in (
+        ("request_id", "INTEGER"),
+        ("line_no", "INTEGER"),
+        ("purpose", "TEXT"),
+        ("amount", "REAL DEFAULT 0"),
+    ):
+        _ensure_column(db, "petty_cash_request_lines", column, col_type)
     db.execute("""
         CREATE TABLE IF NOT EXISTS petty_cash_expenses(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -3783,8 +3810,10 @@ PETTY_CASH_WORKFLOW_STEPS = (
 )
 
 
-def _petty_cash_workflow_index(status):
+def _petty_cash_workflow_index(status, approval_status=None):
     """Map request status to workflow progress step index."""
+    if status == "Submitted" and approval_status == RECORD_APPROVED:
+        return 1
     mapping = {
         "Draft": 0,
         "Submitted": 0,
@@ -3797,6 +3826,41 @@ def _petty_cash_workflow_index(status):
         "Closed": 6,
     }
     return mapping.get(status or "Draft", 0)
+
+
+def _petty_cash_is_approved(request_row):
+    if not request_row:
+        return False
+    status = request_row.get("status") or "Draft"
+    approval = request_row.get("approval_status") or "Draft"
+    if status in (
+        "Approved",
+        "Funds Transferred",
+        "Amount Received",
+        "Settlement Pending",
+        "Settled",
+        "Closed",
+    ):
+        return True
+    return status == "Submitted" and approval == RECORD_APPROVED
+
+
+def _petty_cash_can_record_transfer(request_row):
+    if not _petty_cash_is_approved(request_row):
+        return False
+    status = (request_row or {}).get("status") or "Draft"
+    if status in (
+        "Funds Transferred",
+        "Amount Received",
+        "Settlement Pending",
+        "Settled",
+        "Closed",
+    ):
+        return False
+    return status == "Approved" or (
+        status == "Submitted"
+        and (request_row.get("approval_status") or "") == RECORD_APPROVED
+    )
 
 
 def _petty_cash_can_edit_request(request_row):
@@ -3827,7 +3891,98 @@ def _petty_cash_can_delete_request(request_row):
     return False
 
 
+def _parse_petty_cash_line_items():
+    """Parse multi-row purpose/amount lines from the request form."""
+    purposes = request.form.getlist("purpose_line[]")
+    amounts = request.form.getlist("amount_line[]")
+    row_count = max(len(purposes), len(amounts))
+    lines = []
+    for idx in range(row_count):
+        purpose = (purposes[idx] if idx < len(purposes) else "").strip()
+        amount_raw = (amounts[idx] if idx < len(amounts) else "0").strip()
+        try:
+            amount_val = float(amount_raw or 0)
+        except ValueError:
+            amount_val = 0.0
+        if not purpose and amount_val <= 0:
+            continue
+        lines.append({
+            "line_no": len(lines) + 1,
+            "purpose": purpose,
+            "amount": round(amount_val, 2),
+        })
+    return lines
+
+
+def _aggregate_petty_cash_line_items(lines):
+    if not lines:
+        return "", "", 0.0
+    purposes = [line["purpose"] for line in lines if line.get("purpose")]
+    total = round(sum(float(line.get("amount") or 0) for line in lines), 2)
+    combined_purpose = (
+        purposes[0]
+        if len(purposes) == 1
+        else "; ".join(purposes)
+    )
+    description = "\n".join(
+        f"{line['line_no']}. {line['purpose']}: {line['amount']:,.2f}"
+        for line in lines
+    )
+    return combined_purpose, description, total
+
+
+def _save_petty_cash_request_lines(db, request_id, lines):
+    db.execute(
+        "DELETE FROM petty_cash_request_lines WHERE request_id=?",
+        (request_id,),
+    )
+    for line in lines:
+        db.execute(
+            "INSERT INTO petty_cash_request_lines("
+            "request_id, line_no, purpose, amount"
+            ") VALUES(?,?,?,?)",
+            (
+                request_id,
+                line["line_no"],
+                line["purpose"],
+                line["amount"],
+            ),
+        )
+
+
+def _load_petty_cash_request_lines(db, request_id):
+    if not request_id:
+        return []
+    rows = query_db(
+        "SELECT id, request_id, line_no, purpose, amount "
+        "FROM petty_cash_request_lines WHERE request_id=? "
+        "ORDER BY line_no, id",
+        (request_id,),
+    )
+    if rows:
+        return rows
+    header = db.execute(
+        "SELECT purpose, description, required_amount FROM petty_cash_requests WHERE id=?",
+        (request_id,),
+    ).fetchone()
+    if not header or not (header["purpose"] or header["required_amount"]):
+        return []
+    return [{
+        "line_no": 1,
+        "purpose": header["purpose"] or "",
+        "amount": float(header["required_amount"] or 0),
+    }]
+
+
 def _parse_petty_cash_request_form():
+    line_items = _parse_petty_cash_line_items()
+    combined_purpose, line_summary, line_total = _aggregate_petty_cash_line_items(
+        line_items
+    )
+    required_amount = request.form.get("required_amount", "").strip()
+    if not required_amount and line_total > 0:
+        required_amount = str(line_total)
+    purpose = combined_purpose or request.form.get("purpose", "").strip()
     return {
         "request_date": request.form.get("request_date", "").strip(),
         "project_id": request.form.get("project_id") or None,
@@ -3835,11 +3990,12 @@ def _parse_petty_cash_request_form():
         "staff_name": request.form.get("staff_name", "").strip(),
         "employee_code": request.form.get("employee_code", "").strip(),
         "department": request.form.get("department", "").strip(),
-        "purpose": request.form.get("purpose", "").strip(),
-        "description": request.form.get("description", "").strip(),
-        "required_amount": request.form.get("required_amount", "0").strip(),
+        "purpose": purpose,
+        "description": line_summary,
+        "required_amount": required_amount,
         "priority": request.form.get("priority", "Normal").strip() or "Normal",
         "remarks": request.form.get("remarks", "").strip(),
+        "line_items": line_items,
     }
 
 
@@ -4665,6 +4821,40 @@ def _sync_payroll_run_after_workflow(db, approval_id):
             "UPDATE payroll_lines SET approval_status=? WHERE payroll_run_id=?",
             (RECORD_APPROVED, req["record_id"]),
         )
+
+
+def _sync_petty_cash_after_workflow(db, approval_id):
+    """Keep petty_cash_requests.status aligned with workflow outcome."""
+    req = db.execute(
+        "SELECT record_id, record_table FROM approval_requests WHERE id=?",
+        (approval_id,),
+    ).fetchone()
+    if not req or req["record_table"] != "petty_cash_requests":
+        return
+    row = db.execute(
+        "SELECT status, approval_status FROM petty_cash_requests WHERE id=?",
+        (req["record_id"],),
+    ).fetchone()
+    if not row:
+        return
+    approval = row["approval_status"] or "Draft"
+    status = row["status"] or "Draft"
+    status_map = {
+        RECORD_PENDING_CHECKER: "Submitted",
+        RECORD_PENDING_APPROVAL: "Submitted",
+        RECORD_APPROVED: "Approved",
+        RECORD_REJECTED_CHECKER: "Rejected",
+        RECORD_REJECTED_APPROVER: "Rejected",
+    }
+    new_status = status_map.get(approval)
+    if not new_status or status not in ("Draft", "Submitted", "Rejected"):
+        return
+    if new_status == status:
+        return
+    db.execute(
+        "UPDATE petty_cash_requests SET status=?, modified_at=? WHERE id=?",
+        (new_status, _petty_cash_timestamp(), req["record_id"]),
+    )
 
 
 def _prepare_store_db(db):
@@ -7048,11 +7238,11 @@ HR_NAV_ACTIVE = [
     "employee_profile",
     "staff_bonus",
     "attendance",
+    "timesheet",
     "employee_timesheets",
     "employee_timesheets_form",
     "employee_timesheets_submit",
     "employee_timesheets_print",
-    "timesheet",
     "leave_request",
     "payroll",
     "payroll_payments",
@@ -7085,7 +7275,6 @@ SUBCONTRACT_NAV_ACTIVE = [
     "workers",
     "subcontractors",
     "attendance",
-    "timesheet",
     "sub_billing_register",
     "sub_billing_form",
     "sub_billing_print",
@@ -7526,13 +7715,7 @@ NAV_GROUPS = [
                 "endpoint": "attendance",
                 "label": "Attendance",
                 "icon": "fa-calendar-check",
-                "active_endpoints": ["attendance"],
-            },
-            {
-                "endpoint": "timesheet",
-                "label": "Daily Timesheet",
-                "icon": "fa-clock",
-                "active_endpoints": ["timesheet"],
+                "active_endpoints": ["attendance", "timesheet"],
             },
             {
                 "endpoint": "employee_timesheets",
@@ -7620,14 +7803,7 @@ NAV_GROUPS = [
                 "icon": "fa-calendar-check",
                 "anchor": "add-attendance",
                 "query": {"nav": "subcontract"},
-                "active_endpoints": ["attendance"],
-            },
-            {
-                "endpoint": "timesheet",
-                "label": "Worker Timesheet",
-                "icon": "fa-clock",
-                "query": {"nav": "subcontract"},
-                "active_endpoints": ["timesheet"],
+                "active_endpoints": ["attendance", "timesheet"],
             },
             {
                 "endpoint": "sub_billing_register",
@@ -8202,8 +8378,8 @@ NAV_GROUPS = [
             },
             {
                 "endpoint": "approvals",
-                "label": "Timesheet Approvals",
-                "icon": "fa-clock",
+                "label": "Attendance Approvals",
+                "icon": "fa-calendar-check",
                 "query": {"module": "timesheet"},
                 "active_endpoints": ["approvals", "approval_detail", "approval_action"],
             },
@@ -9445,8 +9621,8 @@ def get_department_portals():
             "summary_title": "Workforce Summary",
             "menu": [
                 {"endpoint": "staff", "label": "Employee Master", "icon": "fa-user-tie", "active_endpoints": ["staff", "employee_profile"]},
-                {"endpoint": "attendance", "label": "Attendance", "icon": "fa-calendar-check", "active_endpoints": ["attendance"]},
-                {"endpoint": "timesheet", "label": "Timesheet", "icon": "fa-clock", "active_endpoints": ["timesheet", "employee_timesheets"]},
+                {"endpoint": "attendance", "label": "Attendance", "icon": "fa-calendar-check", "active_endpoints": ["attendance", "timesheet"]},
+                {"endpoint": "employee_timesheets", "label": "Monthly Timesheet", "icon": "fa-table", "active_endpoints": ["employee_timesheets", "employee_timesheets_form", "employee_timesheets_submit", "employee_timesheets_print"]},
                 {"endpoint": "payroll", "label": "Payroll", "icon": "fa-money-check-dollar", "active_endpoints": ["payroll", "payroll_payments"]},
                 {"endpoint": "salary", "label": "Salary Payment", "icon": "fa-wallet", "active_endpoints": ["salary"]},
                 {"endpoint": "leave_request", "label": "Leave Management", "icon": "fa-plane-departure", "active_endpoints": ["leave_request"]},
@@ -10634,6 +10810,7 @@ ENDPOINT_WORKFLOW_MODULE = {
     "store_receipt": "store_receipt",
     "sub_billing_register": "subcontractor_billing",
     "subcontract_payments": "subcontract_payments",
+    "attendance": "daily_timesheet",
     "timesheet": "daily_timesheet",
     "employee_timesheets": "employee_timesheet",
 }
@@ -11799,9 +11976,8 @@ def workforce_dashboard():
     ]
     modules = [
         {"endpoint": "staff", "label": "Employees", "icon": "fa-user-tie", "description": "Employee master, profiles & bonus"},
-        {"endpoint": "attendance", "label": "Attendance", "icon": "fa-calendar-check", "description": "Daily staff attendance register"},
+        {"endpoint": "attendance", "label": "Attendance", "icon": "fa-calendar-check", "description": "Daily staff & worker attendance register"},
         {"endpoint": "employee_timesheets", "label": "Monthly Timesheets", "icon": "fa-table", "description": "Monthly employee timesheet submission"},
-        {"endpoint": "timesheet", "label": "Daily Timesheet Register", "icon": "fa-clock", "description": "Daily labour timesheet entries"},
         {"endpoint": "leave_request", "label": "Leave Management", "icon": "fa-plane-departure", "description": "Leave applications & approvals"},
         {"endpoint": "payroll", "label": "Payroll", "icon": "fa-money-check-dollar", "description": "Payroll processing & slips"},
         {"endpoint": "payroll_revisions", "label": "Rate Revisions", "icon": "fa-chart-line", "description": "Salary rate revision history"},
@@ -12306,7 +12482,6 @@ def subcontract_dashboard():
         {"endpoint": "subcontractors", "label": "Subcontractor Creation", "icon": "fa-user-plus", "description": "Register new subcontractor firms"},
         {"endpoint": "subcontractors", "label": "Subcontractor List", "icon": "fa-list", "description": "Browse all active subcontractors"},
         {"endpoint": "attendance", "label": "Worker Attendance", "icon": "fa-calendar-day", "description": "Daily worker attendance on site"},
-        {"endpoint": "timesheet", "label": "Worker Timesheet", "icon": "fa-stopwatch", "description": "Worker hours & productivity"},
         {"endpoint": "sub_billing_register", "label": "Subcontract Bills", "icon": "fa-file-invoice-dollar", "description": "RA bills & measurement sheets"},
         {"endpoint": "subcontract_payments", "label": "Subcontract Payments", "icon": "fa-hand-holding-dollar", "description": "Payment vouchers to subcontractors"},
     ]
@@ -13460,6 +13635,41 @@ def _timesheet_nav_kwargs(subcontractor_nav: bool) -> dict[str, str]:
     return {"nav": "subcontract"} if subcontractor_nav else {}
 
 
+def _attendance_tab_nav_query(subcontractor_nav: bool, attendance_tab: str) -> dict[str, str]:
+    query = _timesheet_nav_kwargs(subcontractor_nav)
+    if attendance_tab and attendance_tab not in ("entry", ""):
+        query["tab"] = attendance_tab
+    if attendance_tab == "monthly":
+        query["mode"] = "monthly"
+    return query
+
+
+def _resolve_attendance_tab(
+    *,
+    subcontractor_nav: bool,
+    view_id,
+    edit_id,
+    view_monthly_id,
+    edit_monthly_id,
+) -> str:
+    requested = (request.args.get("tab") or "").strip().lower()
+    if edit_id:
+        return "entry"
+    if view_id:
+        return "saved"
+    if view_monthly_id or edit_monthly_id:
+        return "monthly"
+    if requested in ("entry", "saved", "monthly"):
+        tab = requested
+    elif request.args.get("mode") == "monthly":
+        tab = "monthly"
+    else:
+        tab = "entry"
+    if subcontractor_nav and tab == "monthly":
+        return "entry"
+    return tab
+
+
 def _handle_daily_timesheet_post(
     db,
     *,
@@ -13468,8 +13678,8 @@ def _handle_daily_timesheet_post(
     table: str,
     subcontractor_nav: bool,
 ):
-    """Handle POST actions for daily timesheet / attendance entry forms."""
-    entry_label = "Timesheet" if endpoint == "timesheet" else "Attendance"
+    """Handle POST actions for daily attendance entry forms."""
+    entry_label = "Attendance"
     form_action = request.form.get("form_action", "save").strip()
     nav_q = _timesheet_nav_kwargs(subcontractor_nav)
 
@@ -13558,7 +13768,8 @@ def _handle_daily_timesheet_post(
             _complete_module_save(db, module_id, table, rid, edit_role)
             db.commit()
             flash(f"{entry_label} updated.")
-            return redirect(url_for(endpoint, **nav_q))
+            nav_q = _attendance_tab_nav_query(subcontractor_nav, "saved")
+            return redirect(url_for(endpoint, **nav_q) + "#attendance-saved-list")
         db.execute(
             "INSERT INTO attendance(worker_id, worker_source, project_id, attendance_date, "
             "in_time, out_time, break_hours, total_hours, ot_hours, status, approval_status, "
@@ -13577,7 +13788,8 @@ def _handle_daily_timesheet_post(
         )
         db.commit()
         flash("Saved. Status: Pending Checker.")
-        return redirect(url_for(endpoint, **nav_q) + "#add-attendance")
+        nav_q = _attendance_tab_nav_query(subcontractor_nav, "saved")
+        return redirect(url_for(endpoint, **nav_q) + "#attendance-saved-list")
     except (sqlite3.Error, KeyError, TypeError):
         db.rollback()
         app.logger.exception("%s save failed", entry_label)
@@ -13611,10 +13823,18 @@ def attendance():
     edit_id = request.args.get("edit")
     view_monthly_id = request.args.get("view_monthly", type=int)
     edit_monthly_id = request.args.get("edit_monthly", type=int)
-    attendance_mode = request.args.get("mode", "daily")
     select_trade = request.args.get("select_trade", type=int)
     select_designation = request.args.get("select_designation", type=int)
     subcontractor_nav = request.args.get("nav") == "subcontract"
+    attendance_tab = _resolve_attendance_tab(
+        subcontractor_nav=subcontractor_nav,
+        view_id=view_id,
+        edit_id=edit_id,
+        view_monthly_id=view_monthly_id,
+        edit_monthly_id=edit_monthly_id,
+    )
+    attendance_mode = "monthly" if attendance_tab == "monthly" else "daily"
+    attendance_nav_query = _attendance_tab_nav_query(subcontractor_nav, attendance_tab)
     if subcontractor_nav:
         attendance_mode = "daily"
     view_record = edit_record = view_monthly_record = edit_monthly_record = None
@@ -13639,6 +13859,7 @@ def attendance():
                 return redirect(url_for(endpoint, view=edit_id))
             wf_ctx = {"edit_role": edit_role}
             edit_worker_ctx = get_attendance_edit_worker_context(edit_record)
+            attendance_tab = "entry"
             attendance_mode = "daily"
     elif view_monthly_id:
         view_monthly_record = get_monthly_attendance_record(db, view_monthly_id)
@@ -13649,6 +13870,7 @@ def attendance():
                 monthly_table,
                 view_monthly_record["approval_status"],
             )
+            attendance_tab = "monthly"
             attendance_mode = "monthly"
     elif edit_monthly_id:
         edit_monthly_record = get_monthly_attendance_record(db, edit_monthly_id)
@@ -13661,6 +13883,7 @@ def attendance():
                 flash("This monthly record is locked and cannot be edited.")
                 return redirect(url_for(endpoint, view_monthly=edit_monthly_id))
             monthly_wf_ctx = {"edit_role": edit_role}
+            attendance_tab = "monthly"
             attendance_mode = "monthly"
     if request.method == "POST":
         form_action = request.form.get("form_action", "save").strip()
@@ -13672,7 +13895,7 @@ def attendance():
                         monthly_module_id, monthly_table, endpoint
                     )
                     if ctx[0] == "redirect":
-                        return redirect(ctx[1] + "?mode=monthly#monthly-attendance")
+                        return redirect(ctx[1] + "?tab=monthly#monthly-attendance")
                     rid, edit_role = ctx
                     save_monthly_attendance_from_form(
                         db,
@@ -13685,7 +13908,7 @@ def attendance():
                     )
                     db.commit()
                     flash("Monthly attendance updated.")
-                    return redirect(url_for(endpoint, mode="monthly") + "#monthly-attendance")
+                    return redirect(url_for(endpoint, tab="monthly") + "#monthly-attendance")
                 new_id = save_monthly_attendance_from_form(
                     db,
                     request.form,
@@ -13697,10 +13920,10 @@ def attendance():
                 )
                 db.commit()
                 flash("Monthly attendance saved. Status: Pending Checker.")
-                return redirect(url_for(endpoint, mode="monthly") + "#monthly-attendance")
+                return redirect(url_for(endpoint, tab="monthly") + "#monthly-attendance")
             except ValueError as exc:
                 flash(str(exc))
-                return redirect(url_for(endpoint, mode="monthly") + "#monthly-attendance")
+                return redirect(url_for(endpoint, tab="monthly") + "#monthly-attendance")
             except (sqlite3.Error, KeyError, TypeError):
                 db.rollback()
                 app.logger.exception("Monthly attendance save failed")
@@ -13708,7 +13931,7 @@ def attendance():
                     "Unable to save monthly attendance. "
                     "If this persists after deploy, check server logs (journalctl -u maxek-erp)."
                 )
-                return redirect(url_for(endpoint, mode="monthly") + "#monthly-attendance")
+                return redirect(url_for(endpoint, tab="monthly") + "#monthly-attendance")
 
         return _handle_daily_timesheet_post(
             db,
@@ -13734,6 +13957,8 @@ def attendance():
         select_trade=select_trade,
         select_designation=select_designation,
         attendance_mode=attendance_mode,
+        attendance_tab=attendance_tab,
+        attendance_nav_query=attendance_nav_query,
         subcontractor_nav=subcontractor_nav,
         sub_attendance_statuses=SUBCONTRACTOR_ATTENDANCE_STATUSES,
         view_record=view_record,
@@ -13775,6 +14000,7 @@ def petty_cash():
             db.execute("DELETE FROM petty_cash_attachments WHERE request_id=?", (request_id,))
             db.execute("DELETE FROM petty_cash_expenses WHERE request_id=?", (request_id,))
             db.execute("DELETE FROM petty_cash_transfers WHERE request_id=?", (request_id,))
+            db.execute("DELETE FROM petty_cash_request_lines WHERE request_id=?", (request_id,))
             db.execute("DELETE FROM approval_requests WHERE module_id=? AND record_id=? AND record_table=?", (
                 module_id, request_id, record_table,
             ))
@@ -13785,6 +14011,7 @@ def petty_cash():
 
         if form_action in ("save_draft", "submit_request", "save_request"):
             payload = _parse_petty_cash_request_form()
+            line_items = payload.get("line_items") or []
             try:
                 amount_val = float(payload["required_amount"] or 0)
             except ValueError:
@@ -13793,11 +14020,11 @@ def petty_cash():
             if not payload["request_date"]:
                 flash("Request date is required.")
                 return redirect(request.referrer or url_for("petty_cash", new=1))
-            if not payload["purpose"]:
-                flash("Purpose is required.")
+            if not line_items:
+                flash("Add at least one purpose line with amount.")
                 return redirect(request.referrer or url_for("petty_cash", new=1))
             if amount_val <= 0:
-                flash("Required amount must be greater than zero.")
+                flash("Total amount must be greater than zero.")
                 return redirect(request.referrer or url_for("petty_cash", new=1))
 
             now = _petty_cash_timestamp()
@@ -13825,6 +14052,7 @@ def petty_cash():
                         username, now, request_id,
                     ),
                 )
+                _save_petty_cash_request_lines(db, int(request_id), line_items)
                 if submit_now:
                     existing_req = db.execute(
                         "SELECT id FROM approval_requests WHERE module_id=? AND record_id=? AND record_table=?",
@@ -13860,6 +14088,7 @@ def petty_cash():
                 ),
             )
             new_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+            _save_petty_cash_request_lines(db, new_id, line_items)
             if submit_now:
                 create_approval_request(
                     db, module_id, new_id, record_table, username, user_id,
@@ -13872,7 +14101,7 @@ def petty_cash():
 
         if form_action == "save_transfer" and request_id:
             row = _load_petty_cash_request(db, request_id)
-            if not row or row.get("status") not in ("Approved", "Funds Transferred"):
+            if not row or not _petty_cash_can_record_transfer(row):
                 flash("Fund transfer is only allowed for approved requests.")
                 return redirect(url_for("petty_cash", view=request_id))
             try:
@@ -14210,6 +14439,9 @@ def petty_cash():
         if not transfer_record:
             flash("Request not found.")
             return redirect(url_for("petty_cash"))
+        if not _petty_cash_can_record_transfer(transfer_record):
+            flash("Fund transfer is only allowed for approved requests.")
+            return redirect(url_for("petty_cash", view=transfer_id))
     elif expenses_id:
         expenses_record = _load_petty_cash_request(db, expenses_id)
         if expenses_record:
@@ -14235,10 +14467,23 @@ def petty_cash():
     next_request_number = generate_petty_cash_request_number(db)
     petty_summary = _petty_cash_dashboard_summary(db)
     workflow_active_index = (
-        _petty_cash_workflow_index(view_record.get("status"))
+        _petty_cash_workflow_index(
+            view_record.get("status"),
+            view_record.get("approval_status"),
+        )
         if view_record
         else 0
     )
+    can_record_transfer = (
+        _petty_cash_can_record_transfer(view_record) if view_record else False
+    )
+    request_lines = []
+    if view_id:
+        request_lines = _load_petty_cash_request_lines(db, view_id)
+    elif edit_id:
+        request_lines = _load_petty_cash_request_lines(db, edit_id)
+    if not request_lines:
+        request_lines = [{"line_no": 1, "purpose": "", "amount": 0}]
 
     return render_template(
         "petty_cash.html",
@@ -14260,6 +14505,10 @@ def petty_cash():
         petty_summary=petty_summary,
         workflow_steps=PETTY_CASH_WORKFLOW_STEPS,
         workflow_active_index=workflow_active_index,
+        can_record_transfer=can_record_transfer,
+        petty_cash_is_approved=(
+            _petty_cash_is_approved(view_record) if view_record else False
+        ),
         filter_status=filter_status,
         filter_project=filter_project,
         filter_q=filter_q,
@@ -14276,6 +14525,7 @@ def petty_cash():
         is_admin=is_admin_user(),
         module_id=module_id,
         record_table=record_table,
+        request_lines=request_lines,
     )
 
 
@@ -14914,7 +15164,11 @@ def settings():
         except sqlite3.IntegrityError:
             flash("Department already exists.")
         return redirect(url_for("settings") + "#department-master")
-    departments = query_db("SELECT * FROM departments ORDER BY department_name")
+    departments = []
+    try:
+        departments = query_db("SELECT * FROM departments ORDER BY department_name")
+    except Exception:
+        departments = []
     current_timezone = get_app_setting(db, "timezone", "Asia/Kolkata")
     dashboard_display = get_dashboard_display_settings(db)
     user_dashboard_prefs = load_dashboard_preferences(db, session.get("user_id"))
@@ -17891,27 +18145,66 @@ def approval_detail(approval_id):
 @app.route("/approvals/action", methods=["POST"])
 @login_required
 def approval_action():
-    approval_id = request.form.get("approval_id", "")
-    action = request.form.get("action", "")
+    db = get_db()
+    action = (request.form.get("action") or "").strip()
+    if action == "verify":
+        action = "approve"
     comments = request.form.get("comments", "")
-    ok, message = advance_approval(
-        get_db(),
-        int(approval_id),
-        session.get("user_id"),
-        action,
-        comments,
-        is_admin_user(),
-    )
-    if ok:
-        _sync_payroll_run_after_workflow(get_db(), int(approval_id))
-        _sync_accounts_after_workflow(get_db(), int(approval_id))
-        _sync_treasury_after_workflow(get_db(), int(approval_id))
-        _sync_store_after_workflow(get_db(), int(approval_id))
-        _sync_subcontract_payments_after_workflow(get_db(), int(approval_id))
-        _sync_client_billing_after_workflow(get_db(), int(approval_id))
-    get_db().commit()
-    flash(message, "success" if ok else "warning")
     role = request.form.get("role") or request.args.get("role") or "checker"
+    bulk_ids = []
+    for value in request.form.getlist("approval_ids"):
+        text = str(value).strip()
+        if text.isdigit():
+            bulk_ids.append(int(text))
+    bulk_ids = bulk_ids[:10]
+    single_id = (request.form.get("approval_id") or "").strip()
+    if not bulk_ids and single_id.isdigit():
+        bulk_ids = [int(single_id)]
+    if not bulk_ids:
+        flash("No approval item selected.", "warning")
+        return redirect(request.referrer or url_for("approvals", role=role))
+
+    ok_count = 0
+    last_message = "No items processed."
+    for approval_id in bulk_ids:
+        try:
+            ok, message = advance_approval(
+                db,
+                approval_id,
+                session.get("user_id"),
+                action,
+                comments,
+                is_admin_user(),
+            )
+        except Exception as exc:
+            app.logger.exception("approval_action failed for id=%s", approval_id)
+            ok, message = False, str(exc)
+        last_message = message
+        if ok:
+            ok_count += 1
+            try:
+                _sync_payroll_run_after_workflow(db, approval_id)
+                _sync_petty_cash_after_workflow(db, approval_id)
+                _sync_accounts_after_workflow(db, approval_id)
+                _sync_treasury_after_workflow(db, approval_id)
+                _sync_store_after_workflow(db, approval_id)
+                _sync_subcontract_payments_after_workflow(db, approval_id)
+                _sync_client_billing_after_workflow(db, approval_id)
+            except Exception:
+                app.logger.exception("post-approval sync failed for id=%s", approval_id)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        flash("Unable to save approval changes.", "warning")
+        return redirect(request.referrer or url_for("approvals", role=role))
+    if len(bulk_ids) == 1:
+        flash(last_message, "success" if ok_count else "warning")
+    else:
+        flash(
+            f"Completed {ok_count} of {len(bulk_ids)} selected approvals.",
+            "success" if ok_count else "warning",
+        )
     return redirect(request.referrer or url_for("approvals", role=role))
 
 
@@ -22279,77 +22572,8 @@ def inventory():
 @app.route("/timesheet", methods=["GET", "POST"])
 @login_required
 def timesheet():
-    module_id, table, endpoint = "daily_timesheet", "attendance", "timesheet"
-    db = get_db()
-    ensure_attendance_master_schema(db)
-    db.commit()
-    subcontractor_nav = request.args.get("nav") == "subcontract"
-    attendance_workers = get_attendance_form_worker_data()
-    projects = get_attendance_project_options()
-    trades = get_active_trades()
-    designations = get_active_designations()
-    select_trade = request.args.get("select_trade", type=int)
-    select_designation = request.args.get("select_designation", type=int)
-    view_id = request.args.get("view")
-    edit_id = request.args.get("edit")
-    view_record = edit_record = None
-    edit_worker_ctx = {"staff_type": "", "subcontractor_id": ""}
-    wf_ctx = {}
-    if view_id:
-        view_record = query_db(_DAILY_ATTENDANCE_RECORD_SQL, (view_id,), one=True)
-        if view_record:
-            wf_ctx = _workflow_view_context(
-                module_id, view_record["id"], table, view_record["approval_status"]
-            )
-    elif edit_id:
-        edit_record = query_db(_DAILY_ATTENDANCE_RECORD_SQL, (edit_id,), one=True)
-        if edit_record:
-            edit_role = get_edit_role_for_user(
-                get_db(), session.get("user_id"), module_id,
-                edit_record["approval_status"], is_admin_user(),
-            )
-            if not edit_role:
-                flash("This record is locked and cannot be edited.")
-                nav_q = _timesheet_nav_kwargs(subcontractor_nav)
-                return redirect(url_for(endpoint, view=edit_id, **nav_q))
-            wf_ctx = {"edit_role": edit_role}
-            edit_worker_ctx = get_attendance_edit_worker_context(edit_record)
-    if request.method == "POST":
-        return _handle_daily_timesheet_post(
-            db,
-            endpoint=endpoint,
-            module_id=module_id,
-            table=table,
-            subcontractor_nav=subcontractor_nav,
-        )
-    rows = list_daily_attendance_records(
-        db, subcontractor_only=subcontractor_nav
-    )
-    return render_template(
-        "timesheet.html",
-        rows=rows,
-        subcontractor_nav=subcontractor_nav,
-        company_staff=attendance_workers["company_staff"],
-        subcontractors=attendance_workers["subcontractors"],
-        subcontractor_workers=attendance_workers["subcontractor_workers"],
-        projects=projects,
-        trades=trades,
-        designations=designations,
-        select_trade=select_trade,
-        select_designation=select_designation,
-        sub_attendance_statuses=SUBCONTRACTOR_ATTENDANCE_STATUSES,
-        view_record=view_record,
-        edit_record=edit_record,
-        edit_staff_type=edit_worker_ctx["staff_type"],
-        edit_subcontractor_id=edit_worker_ctx["subcontractor_id"],
-        history=wf_ctx.get("history"),
-        edit_role=wf_ctx.get("edit_role"),
-        can_reopen=wf_ctx.get("can_reopen", False),
-        approval_id=wf_ctx.get("approval_id"),
-        form_endpoint="timesheet",
-        form_mode="timesheet",
-        **_daily_timesheet_field_defaults(),
-    )
+    """Legacy URL — daily labour entries live under Attendance."""
+    return attendance()
 
 
 @app.route("/wbs")

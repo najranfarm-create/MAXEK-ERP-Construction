@@ -67,11 +67,28 @@ copy_file() {
 
 UI_FILES=(
   static/css/maxek-dashboard.css
+  static/css/maxek-pro-dashboard.css
   static/js/maxek-ui.js
+  static/js/maxek-pro-dashboard.js
   static/js/dpr-forms.js
   templates/base_maxek.html
   templates/dpr.html
   templates/revised_estimate.html
+  templates/partials/header_utility_cluster.html
+  templates/partials/dashboard_shell_header.html
+  templates/partials/dashboard_shell_module_header.html
+  templates/partials/dashboard_shell_sidebar.html
+  templates/partials/shell_flash_and_title.html
+  templates/partials/attendance_module_tabs.html
+  templates/approvals.html
+  static/js/approvals-bulk.js
+  static/js/attendance-module-tabs.js
+  templates/partials/petty_cash_line_items.html
+  static/js/petty-cash-lines.js
+)
+
+WORKFLOW_FILES=(
+  app.py
 )
 
 FULL_FILES=(
@@ -91,6 +108,9 @@ case "${MODE}" in
   ui)
     for f in "${UI_FILES[@]}"; do copy_file "${f}"; done
     ;;
+  workflow)
+    for f in "${UI_FILES[@]}" "${WORKFLOW_FILES[@]}"; do copy_file "${f}"; done
+    ;;
   full)
     for f in "${UI_FILES[@]}" "${FULL_FILES[@]}"; do copy_file "${f}"; done
     mkdir -p "${LIVE}/uploads/project_completion"
@@ -99,7 +119,7 @@ case "${MODE}" in
     copy_file templates/revised_estimate.html
   ;;
   *)
-    echo "Usage: $0 [ui|full|hotfix-re]"
+    echo "Usage: $0 [ui|workflow|full|hotfix-re]"
     exit 1
     ;;
 esac
@@ -114,6 +134,18 @@ fi
 if [[ -f "${LIVE}/templates/login.html.working-20260707" ]]; then
   cp "${LIVE}/templates/login.html.working-20260707" "${LIVE}/templates/login.html"
   echo "  OK login.html restored from working backup"
+fi
+
+if [[ -x "${SCRIPT_DIR}/inject-attendance-tabs.sh" ]]; then
+  LIVE="${LIVE}" bash "${SCRIPT_DIR}/inject-attendance-tabs.sh"
+elif [[ -f "${PATCH_ROOT}/../inject-attendance-tabs.sh" ]]; then
+  LIVE="${LIVE}" bash "${PATCH_ROOT}/../inject-attendance-tabs.sh"
+fi
+
+if [[ -x "${SCRIPT_DIR}/inject-petty-cash-lines.sh" ]]; then
+  LIVE="${LIVE}" bash "${SCRIPT_DIR}/inject-petty-cash-lines.sh"
+elif [[ -f "${PATCH_ROOT}/../inject-petty-cash-lines.sh" ]]; then
+  LIVE="${LIVE}" bash "${PATCH_ROOT}/../inject-petty-cash-lines.sh"
 fi
 
 echo "==> Restarting maxek-erp.service"
