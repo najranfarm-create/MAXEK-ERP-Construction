@@ -58,6 +58,29 @@ from project_completion_service import (
     save_project_completion,
 )
 
+try:
+    from navigation_service import build_page_navigation
+except ModuleNotFoundError:
+    def build_page_navigation(request, **kwargs):
+        home = kwargs.get("primary_dashboard_endpoint", "dashboard")
+        try:
+            home_url = url_for(home)
+        except Exception:
+            home_url = "/"
+        return {
+            "page_crud_mode": "list",
+            "page_list_url": "",
+            "page_parent_url": home_url,
+            "pro_shell_back_url": home_url,
+            "pro_shell_home_url": home_url,
+            "page_nav_back_url": home_url,
+            "page_nav_back_label": "Back",
+            "page_nav_parent_url": home_url,
+            "page_nav_parent_label": "Dashboard",
+            "page_nav_show": False,
+            "auto_breadcrumb_items": [],
+        }
+
 from payroll_service import (
     calculate_daily_wage,
     generate_payroll_run,
@@ -367,8 +390,6 @@ from helpdesk_service import (
     save_help_topic,
     delete_help_topic,
 )
-
-from navigation_service import build_page_navigation
 
 from ui_shell_config import (
     APP_VERSION_LABEL,

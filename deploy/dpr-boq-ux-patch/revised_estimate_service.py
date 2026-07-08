@@ -94,14 +94,23 @@ def prepare_revised_estimate_db(db) -> None:
     ensure_revised_estimate_tables(db)
 
 
-def list_revised_estimates(db, project_id: int | None = None) -> list[dict[str, Any]]:
-    sql = (
-        "SELECT e.*, p.project_code, p.project_name, bm.boq_number "
+def _estimate_select_sql(db) -> str:
+    if _table_exists(db, "boq_master"):
+        return (
+            "SELECT e.*, p.project_code, p.project_name, bm.boq_number "
+            "FROM revised_estimates e "
+            "LEFT JOIN projects p ON e.project_id = p.id "
+            "LEFT JOIN boq_master bm ON e.boq_id = bm.id "
+        )
+    return (
+        "SELECT e.*, p.project_code, p.project_name, NULL AS boq_number "
         "FROM revised_estimates e "
         "LEFT JOIN projects p ON e.project_id = p.id "
-        "LEFT JOIN boq_master bm ON e.boq_id = bm.id "
-        "WHERE 1=1"
     )
+
+
+def list_revised_estimates(db, project_id: int | None = None) -> list[dict[str, Any]]:
+    sql = _estimate_select_sql(db) + "WHERE 1=1"
     params: list[Any] = []
     if project_id:
         sql += " AND e.project_id=?"
@@ -113,10 +122,7 @@ def list_revised_estimates(db, project_id: int | None = None) -> list[dict[str, 
 
 def get_revised_estimate(db, estimate_id: int) -> dict[str, Any] | None:
     row = db.execute(
-        "SELECT e.*, p.project_code, p.project_name, bm.boq_number "
-        "FROM revised_estimates e "
-        "LEFT JOIN projects p ON e.project_id = p.id "
-        "LEFT JOIN boq_master bm ON e.boq_id = bm.id WHERE e.id=?",
+        _estimate_select_sql(db) + "WHERE e.id=?",
         (estimate_id,),
     ).fetchone()
     if not row:
@@ -139,11 +145,14 @@ def _next_revision_no(db, project_id: int) -> int:
 
 
 def load_boq_lines_for_project(db, project_id: int, boq_id: int | None = None) -> list[dict[str, Any]]:
-    from boq_management_service import ensure_boq_management_schema, get_boq_items_for_project
+    try:
+        from boq_management_service import ensure_boq_management_schema, get_boq_items_for_project
 
-    ensure_boq_management_schema(db)
-    items = get_boq_items_for_project(db, project_id, boq_id=boq_id)
-    return _items_to_estimate_lines(items)
+        ensure_boq_management_schema(db)
+        items = get_boq_items_for_project(db, project_id, boq_id=boq_id)
+        return _items_to_estimate_lines(items)
+    except Exception:
+        return []
 
 
 def _items_to_estimate_lines(items: list[dict[str, Any]]) -> list[dict[str, Any]]:

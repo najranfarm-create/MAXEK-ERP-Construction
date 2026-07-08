@@ -6,6 +6,7 @@
 <a href="{{ url_for('revised_estimate', tab='create', project_id=filter_project) if filter_project else url_for('revised_estimate', tab='create') }}#revised-estimate-form" class="erp-btn erp-btn-primary"><i class="fa-solid fa-pen-ruler"></i> New Revision</a>
 {% endblock %}
 {% block content %}
+{% set active_tab = active_tab|default('register') %}
 <div class="module-layout revised-estimate-module" data-revised-estimate-module>
   <div class="re-tabs">
     <a href="{{ url_for('revised_estimate', tab='register', project_id=filter_project) }}" class="erp-btn erp-btn-ghost re-tab-btn{% if active_tab == 'register' %} is-active{% endif %}">Register</a>
