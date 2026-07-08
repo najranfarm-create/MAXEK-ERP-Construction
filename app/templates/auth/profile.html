@@ -16,6 +16,27 @@
       <div class="errors">{{ error }}</div>
     {% endfor %}
 
+    <hr style="margin: 24px 0; border: none; border-top: 1px solid var(--border);">
+    <p class="muted">Change password (optional)</p>
+
+    <label for="current_password">Current password</label>
+    {{ form.current_password(id="current_password") }}
+    {% for error in form.current_password.errors %}
+      <div class="errors">{{ error }}</div>
+    {% endfor %}
+
+    <label for="new_password">New password</label>
+    {{ form.new_password(id="new_password") }}
+    {% for error in form.new_password.errors %}
+      <div class="errors">{{ error }}</div>
+    {% endfor %}
+
+    <label for="confirm_password">Confirm new password</label>
+    {{ form.confirm_password(id="confirm_password") }}
+    {% for error in form.confirm_password.errors %}
+      <div class="errors">{{ error }}</div>
+    {% endfor %}
+
     {{ form.submit(class="btn") }}
   </form>
 </div>

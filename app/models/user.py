@@ -41,5 +41,16 @@ class User(UserMixin, db.Model):
     def touch(self) -> None:
         self.updated_at = datetime.now(timezone.utc)
 
+    def to_dict(self) -> dict[str, str | bool]:
+        return {
+            "id": self.id,
+            "email": self.email,
+            "name": self.name,
+            "role": self.role,
+            "is_active": self.is_active_user,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
     def __repr__(self) -> str:
         return f"<User {self.email}>"
