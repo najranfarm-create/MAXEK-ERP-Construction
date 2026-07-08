@@ -34,8 +34,10 @@ FILES=(
   boq_management_routes.py
   revised_estimate_service.py
   project_completion_service.py
+  toc_extension_service.py
   templates/boq_management.html
   templates/revised_estimate.html
+  templates/toc_extension.html
   templates/dpr.html
   templates/project_completion.html
   static/js/boq-management.js

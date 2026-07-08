@@ -1,0 +1,392 @@
+{% extends 'base_maxek.html' %}
+{% set page_title = 'Time of Completion (TOC) Extension' %}
+{% set breadcrumbs = '<a href="' ~ url_for('dashboard') ~ '">Home</a> &gt; Projects &gt; TOC Extension' %}
+{% block page_actions %}
+<a href="{{ url_for('projects') }}" class="erp-btn erp-btn-ghost"><i class="fa-solid fa-folder-tree"></i> Project Master</a>
+<a href="{{ url_for('toc_extension', tab='register', project_id=filter_project) ~ '#toc-form' if filter_project else url_for('toc_extension', tab='register') ~ '#toc-form' }}" class="erp-btn erp-btn-primary"><i class="fa-solid fa-plus"></i> New TOC</a>
+{% endblock %}
+{% block head_extra %}
+<script src="{{ url_for('static', filename='js/toc-extension.js') }}?v=20260708-toc" defer></script>
+{% endblock %}
+{% block content %}
+<div class="module-layout toc-extension-module module-layout--entry-focus{% if not editing_toc and not request.args.get('new') %} module-layout--list-only{% endif %}" data-toc-module>
+  <div class="erp-form-card erp-form-card--tabs" style="margin-bottom:1rem;">
+    <div class="erp-tab-bar">
+      <a href="{{ url_for('toc_extension', tab='register', project_id=filter_project or none) }}" class="erp-tab{% if active_tab == 'register' %} active{% endif %}">TOC Register</a>
+      <a href="{{ url_for('toc_extension', tab='agreement', project_id=filter_project or none) }}" class="erp-tab{% if active_tab == 'agreement' %} active{% endif %}">My Agreement</a>
+    </div>
+  </div>
+
+  <div class="erp-form-card" style="margin-bottom:1rem;">
+    <form method="get" class="erp-form-grid">
+      <input type="hidden" name="tab" value="{{ active_tab }}">
+      <div class="erp-field span-2">
+        <select name="project_id" class="has-value" onchange="this.form.submit()">
+          <option value="">All projects</option>
+          {% for p in projects %}
+          <option value="{{ p.id }}"{% if filter_project == p.id %} selected{% endif %}>{{ p.project_code or p.id }} — {{ p.project_name }}</option>
+          {% endfor %}
+        </select>
+        <label>Project</label>
+      </div>
+    </form>
+  </div>
+
+  {% if active_tab == 'agreement' %}
+  <div class="erp-form-card" id="toc-agreement-list">
+    <h3 class="erp-form-title">My Agreement — Base Completion &amp; Extensions</h3>
+    <p class="erp-form-hint">Agreement baseline completion time and cumulative time extensions due to site conditions, land, rain, and other delays.</p>
+    <div class="erp-table-scroll">
+      <table class="erp-table erp-table-module">
+        <thead>
+          <tr>
+            <th>Project</th>
+            <th>Agreement No.</th>
+            <th>Start</th>
+            <th>Base Completion (Agreement)</th>
+            <th>Current Completion</th>
+            <th>Total Ext. Days</th>
+            <th>TOC Count</th>
+            <th>Latest Delay</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in agreement_summaries %}
+          <tr>
+            <td>{{ row.project_code or row.project_id }} — {{ row.project_name or '—' }}</td>
+            <td>{{ row.agreement_number or '—' }}</td>
+            <td>{{ row.start_date or '—' }}</td>
+            <td>{{ row.agreement_base_completion_date or '—' }}</td>
+            <td>{{ row.current_completion_date or row.agreement_base_completion_date or '—' }}</td>
+            <td>{{ row.total_extension_days or 0 }}</td>
+            <td>{{ row.extension_count or 0 }}</td>
+            <td>{{ row.latest_delay_reason or '—' }}</td>
+            <td style="white-space:nowrap;">
+              <a href="{{ url_for('toc_extension', tab='register', project_id=row.project_id) }}" class="erp-btn erp-btn-ghost erp-btn-sm">TOC List</a>
+              <a href="{{ url_for('toc_extension', tab='register', project_id=row.project_id, new=1) }}#toc-form" class="erp-btn erp-btn-primary erp-btn-sm">New TOC</a>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="9">No project agreements found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+
+  {% if view_toc %}
+  <div class="erp-form-card" style="margin-bottom:1rem;">
+    <div class="erp-form-actions" style="margin-bottom:0.75rem;flex-wrap:wrap;">
+      <a href="{{ url_for('toc_extension', tab='register', project_id=filter_project) }}" class="erp-btn erp-btn-ghost erp-btn-sm"><i class="fa-solid fa-arrow-left"></i> Back to list</a>
+      <a href="{{ url_for('toc_extension', tab='agreement', project_id=filter_project) }}" class="erp-btn erp-btn-ghost erp-btn-sm"><i class="fa-solid fa-file-contract"></i> My Agreement</a>
+    </div>
+    <h3 class="erp-form-title">{{ view_toc.document_number }}</h3>
+    <div class="erp-form-grid">
+      <p><strong>Project:</strong> {{ view_toc.project_code or view_toc.project_id }} — {{ view_toc.project_name or '—' }}</p>
+      <p><strong>TOC Date:</strong> {{ view_toc.toc_date or '—' }}</p>
+      <p><strong>Agreement No.:</strong> {{ view_toc.agreement_number or '—' }}</p>
+      <p><strong>Status:</strong> {{ view_toc.status or 'Draft' }}</p>
+      <p><strong>Base Completion (Agreement):</strong> {{ view_toc.agreement_base_completion_date or '—' }}</p>
+      <p><strong>Previous Completion:</strong> {{ view_toc.previous_completion_date or '—' }}</p>
+      <p><strong>Next Extension Date:</strong> {{ view_toc.next_extension_date or '—' }}</p>
+      <p><strong>Extension Days:</strong> {{ view_toc.extension_days or 0 }}</p>
+      <p><strong>Delay Reason:</strong> {{ view_toc.delay_reason or '—' }}</p>
+      <p class="span-2"><strong>Delay Details:</strong> {{ view_toc.delay_description or '—' }}</p>
+      {% if view_toc.remarks %}<p class="span-2"><strong>Remarks:</strong> {{ view_toc.remarks }}</p>{% endif %}
+    </div>
+    {% if view_toc.bg_extensions %}
+    <h4 class="erp-form-subtitle" style="margin-top:1rem;">BG Extensions</h4>
+    <div class="erp-table-scroll">
+      <table class="erp-table erp-table-module">
+        <thead>
+          <tr>
+            <th>Original BG No.</th>
+            <th>Orig. Expiry</th>
+            <th>Extended BG No.</th>
+            <th>Extended Date</th>
+            <th>Amount</th>
+            <th>New Expiry</th>
+            <th>Remarks</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for bg in view_toc.bg_extensions %}
+          <tr>
+            <td>{{ bg.original_bg_number or '—' }}</td>
+            <td>{{ bg.original_bg_expiry_date or '—' }}</td>
+            <td>{{ bg.extended_bg_number or '—' }}</td>
+            <td>{{ bg.extended_bg_date or '—' }}</td>
+            <td>{{ '%.2f'|format(bg.extended_bg_amount or 0) }}</td>
+            <td>{{ bg.extended_bg_expiry_date or '—' }}</td>
+            <td>{{ bg.remarks or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    <div class="erp-form-actions" style="margin-top:1rem;">
+      <a href="{{ url_for('toc_extension', edit=view_toc.id, project_id=filter_project) }}#toc-form" class="erp-btn erp-btn-primary erp-btn-sm"><i class="fa-solid fa-pen-to-square"></i> Edit</a>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if not view_toc %}
+  <section class="erp-module-form-panel erp-form-card erp-data-entry-panel erp-data-entry-panel--wide" id="toc-form" data-entry-panel data-entry-list="toc-register-list" data-entry-back-href="{{ url_for('toc_extension', tab='register', project_id=filter_project or none) }}"{% if not editing_toc and not request.args.get('new') %} hidden{% endif %}>
+    <div class="erp-data-entry-header" role="toolbar" aria-label="Entry navigation">
+      <div class="erp-data-entry-header__title">
+        <button type="button" class="erp-data-entry-nav erp-data-entry-nav--back" data-entry-back aria-label="Back to list"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i></button>
+        <h3 class="erp-form-title">{% if editing_toc %}Edit {{ editing_toc.document_number }}{% else %}New Time of Completion Extension{% endif %}</h3>
+      </div>
+      <button type="button" class="erp-data-entry-nav erp-data-entry-nav--close" data-entry-close aria-label="Close entry"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+    </div>
+    <form method="post" class="erp-form-grid" data-toc-form enctype="multipart/form-data">
+      <input type="hidden" name="form_action" value="save_toc">
+      {% if editing_toc %}<input type="hidden" name="toc_id" value="{{ editing_toc.id }}">{% endif %}
+      <div class="erp-field">
+        <input type="text" name="document_number" readonly value="{{ editing_toc.document_number if editing_toc else preview_document_number }}" data-toc-doc-no>
+        <label>TOC Document No. (auto)</label>
+      </div>
+      <div class="erp-field">
+        <input type="date" name="toc_date" required value="{{ editing_toc.toc_date if editing_toc else today_date }}" data-toc-date>
+        <label>TOC Date</label>
+      </div>
+      <div class="erp-field span-2">
+        <select name="project_id" required data-toc-project-select {% if editing_toc %}disabled{% endif %}>
+          <option value="">Select project</option>
+          {% for p in projects %}
+          <option value="{{ p.id }}"{% if (editing_toc and editing_toc.project_id == p.id) or (filter_project == p.id and not editing_toc) %} selected{% endif %}>{{ p.project_code or p.id }} — {{ p.project_name }}</option>
+          {% endfor %}
+        </select>
+        {% if editing_toc %}<input type="hidden" name="project_id" value="{{ editing_toc.project_id }}">{% endif %}
+        <label>Project Name / Number</label>
+      </div>
+      <div class="erp-field">
+        <input type="text" name="agreement_number" data-toc-agreement-no value="{{ editing_toc.agreement_number if editing_toc else (project_context.agreement_number if project_context else '') }}" placeholder="As per agreement">
+        <label>Agreement Number</label>
+      </div>
+      <div class="erp-field">
+        <input type="date" name="agreement_base_completion_date" data-toc-base-completion value="{{ editing_toc.agreement_base_completion_date if editing_toc else (project_context.agreement_base_completion_date if project_context else '') }}">
+        <label>Base Completion Time (Agreement)</label>
+      </div>
+      <div class="erp-field">
+        <input type="date" name="previous_completion_date" data-toc-prev-completion value="{{ editing_toc.previous_completion_date if editing_toc else (project_context.previous_completion_date if project_context else '') }}">
+        <label>Previous Completion Date</label>
+      </div>
+      <div class="erp-field">
+        <input type="date" name="next_extension_date" required data-toc-next-date value="{{ editing_toc.next_extension_date if editing_toc else '' }}">
+        <label>Next Extension / Revised Completion Date</label>
+      </div>
+      <div class="erp-field erp-field-readonly">
+        <input type="number" min="0" name="extension_days" data-toc-ext-days readonly value="{{ editing_toc.extension_days if editing_toc else '' }}" placeholder="Auto">
+        <label>Additional Days (Extension)</label>
+      </div>
+      <div class="erp-field span-2">
+        <select name="delay_reason" required data-toc-delay-reason>
+          <option value="">Select delay reason</option>
+          {% for reason in delay_reasons %}
+          <option value="{{ reason }}"{% if editing_toc and editing_toc.delay_reason == reason %} selected{% endif %}>{{ reason }}</option>
+          {% endfor %}
+        </select>
+        <label>Delay Reason (site / land / rain / etc.)</label>
+      </div>
+      <div class="erp-field span-2">
+        <textarea name="delay_description" rows="2" placeholder="Describe site conditions, land availability, rain period, etc.">{{ editing_toc.delay_description if editing_toc else '' }}</textarea>
+        <label>Delay Details</label>
+      </div>
+      <div class="erp-field">
+        <select name="status">
+          {% for st in toc_statuses %}
+          <option value="{{ st }}"{% if editing_toc and editing_toc.status == st %} selected{% elif not editing_toc and st == 'Draft' %} selected{% endif %}>{{ st }}</option>
+          {% endfor %}
+        </select>
+        <label>Status</label>
+      </div>
+      <div class="erp-field span-2">
+        <textarea name="remarks" rows="2" placeholder="Internal remarks">{{ editing_toc.remarks if editing_toc else '' }}</textarea>
+        <label>Remarks</label>
+      </div>
+
+      <div class="span-2 toc-bg-section" data-toc-bg-section>
+        <div class="toc-bg-section__header">
+          <h4 class="erp-form-subtitle">Bank Guarantee (BG) Extension</h4>
+          <p class="erp-form-hint">If the project has BG, extend each guarantee with new number, date, amount, and expiry. Use Add BG for multiple guarantees.</p>
+          <button type="button" class="erp-btn erp-btn-ghost erp-btn-sm" data-toc-add-bg><i class="fa-solid fa-plus"></i> Add BG</button>
+        </div>
+        <div class="toc-bg-rows" data-toc-bg-rows>
+          {% set bg_rows = editing_toc.bg_extensions if editing_toc and editing_toc.bg_extensions else (project_context.bank_guarantees if project_context and project_context.bank_guarantees else []) %}
+          {% if bg_rows %}
+          {% for bg in bg_rows %}
+          <div class="toc-bg-row erp-form-grid" data-toc-bg-row>
+            <div class="erp-field">
+              <input type="text" name="bg_original_number" value="{{ bg.original_bg_number or bg.bg_number or '' }}" placeholder="Original BG no.">
+              <label>Original BG Number</label>
+            </div>
+            <div class="erp-field">
+              <input type="date" name="bg_original_expiry_date" value="{{ bg.original_bg_expiry_date or bg.bg_expiry_date or '' }}">
+              <label>Original BG Expiry</label>
+            </div>
+            <div class="erp-field">
+              <input type="number" min="0" step="0.01" name="bg_original_amount" value="{{ bg.original_bg_amount or bg.bg_amount or '' }}">
+              <label>Original Amount</label>
+            </div>
+            <div class="erp-field">
+              <input type="text" name="bg_extended_number" value="{{ bg.extended_bg_number or '' }}" placeholder="Extended BG no.">
+              <label>Extended BG Number</label>
+            </div>
+            <div class="erp-field">
+              <input type="date" name="bg_extended_date" value="{{ bg.extended_bg_date or '' }}">
+              <label>Extended BG Date</label>
+            </div>
+            <div class="erp-field">
+              <input type="number" min="0" step="0.01" name="bg_extended_amount" value="{{ bg.extended_bg_amount or bg.bg_amount or '' }}">
+              <label>Extended Amount</label>
+            </div>
+            <div class="erp-field">
+              <input type="date" name="bg_extended_expiry_date" value="{{ bg.extended_bg_expiry_date or '' }}">
+              <label>Extended BG Expiry Date</label>
+            </div>
+            <div class="erp-field span-2">
+              <input type="text" name="bg_remarks" value="{{ bg.remarks or '' }}" placeholder="BG extension remarks">
+              <label>Remarks</label>
+            </div>
+            <div class="erp-field">
+              <button type="button" class="erp-btn erp-btn-ghost erp-btn-sm" data-toc-remove-bg title="Remove BG row"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          </div>
+          {% endfor %}
+          {% else %}
+          <div class="toc-bg-row erp-form-grid" data-toc-bg-row>
+            <div class="erp-field">
+              <input type="text" name="bg_original_number" placeholder="Original BG no.">
+              <label>Original BG Number</label>
+            </div>
+            <div class="erp-field">
+              <input type="date" name="bg_original_expiry_date">
+              <label>Original BG Expiry</label>
+            </div>
+            <div class="erp-field">
+              <input type="number" min="0" step="0.01" name="bg_original_amount">
+              <label>Original Amount</label>
+            </div>
+            <div class="erp-field">
+              <input type="text" name="bg_extended_number" placeholder="Extended BG no.">
+              <label>Extended BG Number</label>
+            </div>
+            <div class="erp-field">
+              <input type="date" name="bg_extended_date">
+              <label>Extended BG Date</label>
+            </div>
+            <div class="erp-field">
+              <input type="number" min="0" step="0.01" name="bg_extended_amount">
+              <label>Extended Amount</label>
+            </div>
+            <div class="erp-field">
+              <input type="date" name="bg_extended_expiry_date">
+              <label>Extended BG Expiry Date</label>
+            </div>
+            <div class="erp-field span-2">
+              <input type="text" name="bg_remarks" placeholder="BG extension remarks">
+              <label>Remarks</label>
+            </div>
+            <div class="erp-field">
+              <button type="button" class="erp-btn erp-btn-ghost erp-btn-sm" data-toc-remove-bg title="Remove BG row"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="erp-form-actions span-2">
+        <button type="submit" class="erp-btn erp-btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save TOC Extension</button>
+        <a href="{{ url_for('toc_extension', tab='register', project_id=filter_project or none) }}" class="erp-btn erp-btn-ghost">Cancel</a>
+      </div>
+    </form>
+  </section>
+
+  <div class="erp-form-card" id="toc-register-list">
+    <h3 class="erp-form-title">TOC Extension Register</h3>
+    <div class="erp-table-scroll">
+      <table class="erp-table erp-table-module">
+        <thead>
+          <tr>
+            <th>Document No.</th>
+            <th>Date</th>
+            <th>Project</th>
+            <th>Base Completion</th>
+            <th>Next Extension</th>
+            <th>Days</th>
+            <th>Delay Reason</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in toc_records %}
+          <tr>
+            <td>{{ row.document_number }}</td>
+            <td>{{ row.toc_date or '—' }}</td>
+            <td>{{ row.project_code or row.project_id }} — {{ row.project_name or '—' }}</td>
+            <td>{{ row.agreement_base_completion_date or '—' }}</td>
+            <td>{{ row.next_extension_date or '—' }}</td>
+            <td>{{ row.extension_days or 0 }}</td>
+            <td>{{ row.delay_reason or '—' }}</td>
+            <td>{{ row.status or 'Draft' }}</td>
+            <td style="white-space:nowrap;">
+              <a href="{{ url_for('toc_extension', view=row.id, project_id=filter_project) }}" class="erp-btn erp-btn-ghost erp-btn-sm">View</a>
+              <a href="{{ url_for('toc_extension', edit=row.id, project_id=filter_project) }}#toc-form" class="erp-btn erp-btn-ghost erp-btn-sm">Edit</a>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="9">No TOC extensions recorded yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+  {% endif %}
+</div>
+
+<template id="toc-bg-row-template">
+  <div class="toc-bg-row erp-form-grid" data-toc-bg-row>
+    <div class="erp-field">
+      <input type="text" name="bg_original_number" placeholder="Original BG no.">
+      <label>Original BG Number</label>
+    </div>
+    <div class="erp-field">
+      <input type="date" name="bg_original_expiry_date">
+      <label>Original BG Expiry</label>
+    </div>
+    <div class="erp-field">
+      <input type="number" min="0" step="0.01" name="bg_original_amount">
+      <label>Original Amount</label>
+    </div>
+    <div class="erp-field">
+      <input type="text" name="bg_extended_number" placeholder="Extended BG no.">
+      <label>Extended BG Number</label>
+    </div>
+    <div class="erp-field">
+      <input type="date" name="bg_extended_date">
+      <label>Extended BG Date</label>
+    </div>
+    <div class="erp-field">
+      <input type="number" min="0" step="0.01" name="bg_extended_amount">
+      <label>Extended Amount</label>
+    </div>
+    <div class="erp-field">
+      <input type="date" name="bg_extended_expiry_date">
+      <label>Extended BG Expiry Date</label>
+    </div>
+    <div class="erp-field span-2">
+      <input type="text" name="bg_remarks" placeholder="BG extension remarks">
+      <label>Remarks</label>
+    </div>
+    <div class="erp-field">
+      <button type="button" class="erp-btn erp-btn-ghost erp-btn-sm" data-toc-remove-bg title="Remove BG row"><i class="fa-solid fa-trash"></i></button>
+    </div>
+  </div>
+</template>
+{% endblock %}
