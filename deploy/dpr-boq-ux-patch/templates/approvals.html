@@ -1,0 +1,109 @@
+{% extends 'base_maxek.html' %}
+{% set page_title = 'Approvals' %}
+{% set breadcrumbs = '<a href="' ~ url_for('dashboard') ~ '">Home</a> &gt; Approvals' %}
+{% block head_extra %}
+<script src="{{ url_for('static', filename='js/approvals-bulk.js') }}?v=20260708-approvals" defer></script>
+{% endblock %}
+{% block content %}
+{% set bulk_action = 'verify' if role == 'checker' else ('approve' if role == 'approver' else '') %}
+<div class="approvals-module" data-approvals-module data-approval-role="{{ role }}" data-bulk-action="{{ bulk_action }}" data-bulk-max="10" data-action-url="{{ url_for('approval_action') }}">
+  <div class="approval-widgets">
+    <a class="approval-widget" href="{{ url_for('approvals', role='maker', tab=tab, module=module_filter or none) }}">
+      <h4>Maker queue</h4>
+      <div class="count">{{ counts.maker or 0 }}</div>
+    </a>
+    <a class="approval-widget" href="{{ url_for('approvals', role='checker', tab=tab, module=module_filter or none) }}">
+      <h4>Checker queue</h4>
+      <div class="count">{{ counts.checker or 0 }}</div>
+    </a>
+    <a class="approval-widget" href="{{ url_for('approvals', role='approver', tab=tab, module=module_filter or none) }}">
+      <h4>Approver queue</h4>
+      <div class="count">{{ counts.approver or 0 }}</div>
+    </a>
+  </div>
+
+  <nav class="approval-tab-bar" aria-label="Approval role">
+    <a href="{{ url_for('approvals', role='maker', tab=tab, module=module_filter or none) }}" class="erp-tab{% if role == 'maker' %} active{% endif %}">Maker</a>
+    <a href="{{ url_for('approvals', role='checker', tab=tab, module=module_filter or none) }}" class="erp-tab{% if role == 'checker' %} active{% endif %}">Checker</a>
+    <a href="{{ url_for('approvals', role='approver', tab=tab, module=module_filter or none) }}" class="erp-tab{% if role == 'approver' %} active{% endif %}">Approver</a>
+  </nav>
+
+  <nav class="approval-tab-bar" aria-label="Approval module" style="margin-top:0.5rem;">
+    <a href="{{ url_for('approvals', role=role, tab=tab) }}" class="erp-tab{% if not module_filter %} active{% endif %}">All modules</a>
+    <a href="{{ url_for('approvals', role=role, tab=tab, module='purchase') }}" class="erp-tab{% if module_filter == 'purchase' %} active{% endif %}">Purchase</a>
+    <a href="{{ url_for('approvals', role=role, tab=tab, module='store') }}" class="erp-tab{% if module_filter == 'store' %} active{% endif %}">Store</a>
+    <a href="{{ url_for('approvals', role=role, tab=tab, module='timesheet') }}" class="erp-tab{% if module_filter == 'timesheet' %} active{% endif %}">Timesheet</a>
+    <a href="{{ url_for('approvals', role=role, tab=tab, module='payroll') }}" class="erp-tab{% if module_filter == 'payroll' %} active{% endif %}">Payroll</a>
+    <a href="{{ url_for('approvals', role=role, tab=tab, module='payment') }}" class="erp-tab{% if module_filter == 'payment' %} active{% endif %}">Payment</a>
+  </nav>
+
+  <nav class="approval-tab-bar" aria-label="Approval list" style="margin-top:0.5rem;">
+    <a href="{{ url_for('approvals', role=role, tab='pending', module=module_filter or none) }}" class="erp-tab{% if tab == 'pending' %} active{% endif %}">Pending</a>
+    <a href="{{ url_for('approvals', role=role, tab='history', module=module_filter or none) }}" class="erp-tab{% if tab == 'history' %} active{% endif %}">History</a>
+  </nav>
+
+  {% if tab == 'pending' and bulk_action %}
+  <div class="approvals-bulk-toolbar attendance-bulk-toolbar" data-approvals-bulk-toolbar>
+    <label class="attendance-bulk-select-all">
+      <input type="checkbox" data-approvals-select-all aria-label="Select all visible pending items">
+      <span>Select pending (max 10)</span>
+    </label>
+    <span class="attendance-bulk-count" data-approvals-bulk-count>0 selected</span>
+    <div class="approvals-bulk-actions">
+      <button type="button" class="erp-btn erp-btn-primary erp-btn-sm" data-approvals-bulk-submit disabled>
+        {% if role == 'checker' %}Verify selected{% else %}Approve selected{% endif %}
+      </button>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="erp-table-panel">
+    <div class="erp-table-scroll">
+      <table class="erp-table erp-table-module approvals-compact-table" data-approvals-table>
+        <thead>
+          <tr>
+            {% if tab == 'pending' and bulk_action %}<th class="approvals-bulk-col"><span class="sr-only">Select</span></th>{% endif %}
+            <th>Reference</th>
+            <th>Module</th>
+            <th>Submitted</th>
+            <th>By</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          <tr data-approval-row data-approval-id="{{ item.approval_id or item.id }}">
+            {% if tab == 'pending' and bulk_action %}
+            <td class="approvals-bulk-col">
+              {% if item.is_pending and (item.approval_id or item.id) %}
+              <input type="checkbox" class="approvals-row-check" value="{{ item.approval_id or item.id }}" aria-label="Select {{ item.reference_no or item.ref or 'item' }}">
+              {% endif %}
+            </td>
+            {% endif %}
+            <td>{{ item.reference_no or item.ref or '—' }}</td>
+            <td>{{ item.module_name or item.module_label or item.module_id or '—' }}</td>
+            <td>{{ item.date or item.date_created or item.submitted_at or '—' }}</td>
+            <td>{{ item.maker_name or item.submitted_by or '—' }}</td>
+            <td>
+              <span class="approval-badge approval-{{ (item.status_key or item.approval_status or 'pending')|lower|replace(' ', '-') }}">
+                {{ item.status_label or item.display_status or item.approval_status or 'Pending' }}
+              </span>
+            </td>
+            <td class="workflow-row-actions">
+              {% if item.approval_id or item.id %}
+              <a href="{{ url_for('approval_detail', approval_id=item.approval_id or item.id, role=role) }}" class="erp-btn erp-btn-ghost erp-btn-sm">Open</a>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="{% if tab == 'pending' and bulk_action %}7{% else %}6{% endif %}">No {{ tab }} items for this queue.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -17891,27 +17891,50 @@ def approval_detail(approval_id):
 @app.route("/approvals/action", methods=["POST"])
 @login_required
 def approval_action():
-    approval_id = request.form.get("approval_id", "")
+    db = get_db()
     action = request.form.get("action", "")
     comments = request.form.get("comments", "")
-    ok, message = advance_approval(
-        get_db(),
-        int(approval_id),
-        session.get("user_id"),
-        action,
-        comments,
-        is_admin_user(),
-    )
-    if ok:
-        _sync_payroll_run_after_workflow(get_db(), int(approval_id))
-        _sync_accounts_after_workflow(get_db(), int(approval_id))
-        _sync_treasury_after_workflow(get_db(), int(approval_id))
-        _sync_store_after_workflow(get_db(), int(approval_id))
-        _sync_subcontract_payments_after_workflow(get_db(), int(approval_id))
-        _sync_client_billing_after_workflow(get_db(), int(approval_id))
-    get_db().commit()
-    flash(message, "success" if ok else "warning")
     role = request.form.get("role") or request.args.get("role") or "checker"
+    bulk_ids = [
+        int(value)
+        for value in request.form.getlist("approval_ids")
+        if str(value).strip().isdigit()
+    ][:10]
+    single_id = request.form.get("approval_id", "").strip()
+    if not bulk_ids and single_id.isdigit():
+        bulk_ids = [int(single_id)]
+    if not bulk_ids:
+        flash("No approval item selected.", "warning")
+        return redirect(request.referrer or url_for("approvals", role=role))
+
+    ok_count = 0
+    last_message = "No items processed."
+    for approval_id in bulk_ids:
+        ok, message = advance_approval(
+            db,
+            approval_id,
+            session.get("user_id"),
+            action,
+            comments,
+            is_admin_user(),
+        )
+        last_message = message
+        if ok:
+            ok_count += 1
+            _sync_payroll_run_after_workflow(db, approval_id)
+            _sync_accounts_after_workflow(db, approval_id)
+            _sync_treasury_after_workflow(db, approval_id)
+            _sync_store_after_workflow(db, approval_id)
+            _sync_subcontract_payments_after_workflow(db, approval_id)
+            _sync_client_billing_after_workflow(db, approval_id)
+    db.commit()
+    if len(bulk_ids) == 1:
+        flash(last_message, "success" if ok_count else "warning")
+    else:
+        flash(
+            f"Completed {ok_count} of {len(bulk_ids)} selected approvals.",
+            "success" if ok_count else "warning",
+        )
     return redirect(request.referrer or url_for("approvals", role=role))
 
 

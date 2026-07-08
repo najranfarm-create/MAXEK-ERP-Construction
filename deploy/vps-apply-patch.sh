@@ -79,6 +79,13 @@ UI_FILES=(
   templates/partials/dashboard_shell_module_header.html
   templates/partials/dashboard_shell_sidebar.html
   templates/partials/shell_flash_and_title.html
+  templates/settings.html
+  templates/approvals.html
+  static/js/approvals-bulk.js
+)
+
+WORKFLOW_FILES=(
+  app.py
 )
 
 FULL_FILES=(
@@ -98,6 +105,9 @@ case "${MODE}" in
   ui)
     for f in "${UI_FILES[@]}"; do copy_file "${f}"; done
     ;;
+  workflow)
+    for f in "${UI_FILES[@]}" "${WORKFLOW_FILES[@]}"; do copy_file "${f}"; done
+    ;;
   full)
     for f in "${UI_FILES[@]}" "${FULL_FILES[@]}"; do copy_file "${f}"; done
     mkdir -p "${LIVE}/uploads/project_completion"
@@ -106,7 +116,7 @@ case "${MODE}" in
     copy_file templates/revised_estimate.html
   ;;
   *)
-    echo "Usage: $0 [ui|full|hotfix-re]"
+    echo "Usage: $0 [ui|workflow|full|hotfix-re]"
     exit 1
     ;;
 esac
