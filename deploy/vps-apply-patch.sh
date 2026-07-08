@@ -79,7 +79,6 @@ UI_FILES=(
   templates/partials/dashboard_shell_module_header.html
   templates/partials/dashboard_shell_sidebar.html
   templates/partials/shell_flash_and_title.html
-  templates/settings.html
   templates/approvals.html
   static/js/approvals-bulk.js
 )

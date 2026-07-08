@@ -2440,6 +2440,16 @@
   background: rgba(59, 130, 246, 0.12);
 }
 
+.maxek-layout .settings-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.maxek-layout .settings-dept-table {
+  margin-top: 1rem;
+}
+
 .maxek-layout .settings-dashboard-layout {
   display: flex;
   flex-direction: column;

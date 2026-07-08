@@ -45,6 +45,15 @@ fi
 
 # 3) Copy UI files
 echo "==> Copying patch files"
+
+# Restore production settings.html if a UI patch backup exists (fixes /settings 500 after template overwrite)
+SETTINGS_TPL="${LIVE}/templates/settings.html"
+SETTINGS_BAK="$(ls -t "${SETTINGS_TPL}".bak-* 2>/dev/null | head -1 || true)"
+if [[ -n "${SETTINGS_BAK}" ]]; then
+  cp -a "${SETTINGS_BAK}" "${SETTINGS_TPL}"
+  echo "  OK restored settings.html from backup"
+fi
+
 for f in \
   static/css/maxek-dashboard.css \
   static/css/maxek-pro-dashboard.css \
@@ -59,7 +68,6 @@ for f in \
   templates/partials/dashboard_shell_module_header.html \
   templates/partials/dashboard_shell_sidebar.html \
   templates/partials/shell_flash_and_title.html \
-  templates/settings.html \
   templates/approvals.html \
   static/js/approvals-bulk.js
 do

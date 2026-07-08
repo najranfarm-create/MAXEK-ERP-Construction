@@ -14914,7 +14914,11 @@ def settings():
         except sqlite3.IntegrityError:
             flash("Department already exists.")
         return redirect(url_for("settings") + "#department-master")
-    departments = query_db("SELECT * FROM departments ORDER BY department_name")
+    departments = []
+    try:
+        departments = query_db("SELECT * FROM departments ORDER BY department_name")
+    except Exception:
+        departments = []
     current_timezone = get_app_setting(db, "timezone", "Asia/Kolkata")
     dashboard_display = get_dashboard_display_settings(db)
     user_dashboard_prefs = load_dashboard_preferences(db, session.get("user_id"))
