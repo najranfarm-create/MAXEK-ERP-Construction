@@ -1788,19 +1788,39 @@
   flex-shrink: 0;
   font-size: 0.75rem;
   font-weight: 600;
-  padding: 0.2rem 0.55rem;
+  padding: 0.35rem 0.65rem;
   border-radius: 999px;
   white-space: nowrap;
+  border: 1px solid transparent;
 }
 
 .maxek-layout .erp-module-tile-open {
-  color: #b45309;
-  background: #fff7ed;
+  color: var(--dept-accent, var(--maxek-accent));
+  background: color-mix(in srgb, var(--dept-accent, var(--maxek-accent)) 14%, var(--maxek-card-bg));
+  border-color: color-mix(in srgb, var(--dept-accent, var(--maxek-accent)) 36%, var(--maxek-border));
+}
+
+.maxek-layout .erp-module-tile:hover .erp-module-tile-open {
+  background: color-mix(in srgb, var(--dept-accent, var(--maxek-accent)) 22%, var(--maxek-card-bg));
+  border-color: color-mix(in srgb, var(--dept-accent, var(--maxek-accent)) 50%, var(--maxek-border));
 }
 
 .maxek-layout .erp-module-tile-run {
-  color: #1d4ed8;
-  background: #eff6ff;
+  color: #93c5fd;
+  background: color-mix(in srgb, #3b82f6 14%, var(--maxek-card-bg));
+  border-color: color-mix(in srgb, #3b82f6 34%, var(--maxek-border));
+}
+
+[data-theme="pro-light"] .maxek-layout .erp-module-tile-open {
+  color: var(--dept-accent, var(--maxek-accent));
+  background: var(--maxek-accent-soft);
+  border-color: var(--maxek-accent-border);
+}
+
+[data-theme="pro-light"] .maxek-layout .erp-module-tile-run {
+  color: var(--maxek-link);
+  background: color-mix(in srgb, var(--maxek-link) 12%, var(--maxek-card-bg));
+  border-color: color-mix(in srgb, var(--maxek-link) 30%, var(--maxek-border));
 }
 
 .maxek-layout .erp-module-tile-chevron {
@@ -8174,7 +8194,9 @@
 }
 
 .pro-dash-dept-tile--locked .erp-module-tile-open {
-  color: var(--erp-muted, #94a3b8);
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-muted) 10%, var(--maxek-card-bg));
+  border-color: var(--maxek-border);
 }
 
 /* ── v1.0.1 UAT: hide legacy dashboard progress bar ── */
