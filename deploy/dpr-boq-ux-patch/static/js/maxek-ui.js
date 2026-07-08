@@ -1188,6 +1188,7 @@ document.addEventListener('DOMContentLoaded', function () {
     'boq-form': 'boq-list',
     'grn-form': 'grn-register',
     'po-form': 'po-register',
+    'pc-form': 'pc-register-list',
   };
 
   function isDataEntryPanel(el) {
