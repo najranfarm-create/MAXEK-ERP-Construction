@@ -7,7 +7,7 @@ import json
 import re
 import pandas as pd
 import bcrypt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from calendar import monthrange
 from zoneinfo import ZoneInfo
 
@@ -36,6 +36,50 @@ from revised_estimate_service import (
     load_boq_lines_for_project,
     save_revised_estimate,
 )
+from toc_extension_service import (
+    DELAY_REASONS,
+    TOC_STATUSES,
+    prepare_toc_extension_db,
+    next_toc_document_number,
+    list_toc_extensions,
+    get_toc_extension,
+    get_project_agreement_context,
+    list_agreement_summaries,
+    save_toc_extension,
+)
+from project_completion_service import (
+    COMPLETION_DOC_TYPES,
+    COMPLETION_STATUSES,
+    prepare_project_completion_db,
+    next_completion_document_number,
+    list_project_completions,
+    get_project_completion,
+    get_project_completion_context,
+    save_project_completion,
+)
+
+try:
+    from navigation_service import build_page_navigation
+except ModuleNotFoundError:
+    def build_page_navigation(request, **kwargs):
+        home = kwargs.get("primary_dashboard_endpoint", "dashboard")
+        try:
+            home_url = url_for(home)
+        except Exception:
+            home_url = "/"
+        return {
+            "page_crud_mode": "list",
+            "page_list_url": "",
+            "page_parent_url": home_url,
+            "pro_shell_back_url": home_url,
+            "pro_shell_home_url": home_url,
+            "page_nav_back_url": home_url,
+            "page_nav_back_label": "Back",
+            "page_nav_parent_url": home_url,
+            "page_nav_parent_label": "Dashboard",
+            "page_nav_show": False,
+            "auto_breadcrumb_items": [],
+        }
 
 from payroll_service import (
     calculate_daily_wage,
@@ -1281,6 +1325,7 @@ SUBCONTRACTOR_DOCS_DIR = os.path.join(UPLOADS_DIR, "subcontractors")
 CLIENT_DOCS_DIR = os.path.join(UPLOADS_DIR, "clients")
 PROJECT_DOCS_DIR = os.path.join(UPLOADS_DIR, "projects")
 DPR_DOCS_DIR = os.path.join(UPLOADS_DIR, "dpr")
+PROJECT_COMPLETION_DOCS_DIR = os.path.join(UPLOADS_DIR, "project_completion")
 PETTY_CASH_DOCS_DIR = os.path.join(UPLOADS_DIR, "petty_cash")
 ACCOUNTS_DOCS_DIR = os.path.join(UPLOADS_DIR, "accounts")
 STORE_DOCS_DIR = os.path.join(UPLOADS_DIR, "store")
@@ -1354,6 +1399,7 @@ os.makedirs(SUBCONTRACTOR_DOCS_DIR, exist_ok=True)
 os.makedirs(CLIENT_DOCS_DIR, exist_ok=True)
 os.makedirs(PROJECT_DOCS_DIR, exist_ok=True)
 os.makedirs(DPR_DOCS_DIR, exist_ok=True)
+os.makedirs(PROJECT_COMPLETION_DOCS_DIR, exist_ok=True)
 os.makedirs(PETTY_CASH_DOCS_DIR, exist_ok=True)
 os.makedirs(ACCOUNTS_DOCS_DIR, exist_ok=True)
 os.makedirs(STORE_DOCS_DIR, exist_ok=True)
@@ -6872,6 +6918,8 @@ MODULE_ROUTES = {
     "project_creation": "projects",
     "cost_planning": "cost_planning",
     "revised_estimate": "revised_estimate",
+    "toc_extension": "toc_extension",
+    "project_completion": "project_completion",
     "project_documents": "project_documents",
     "manager_tool": "manager_tool",
     "account_expense": "accounts_expenses",
@@ -6972,6 +7020,8 @@ PROJECTS_NAV_ACTIVE = [
     "cost_planning_print",
     "cost_planning_reports",
     "revised_estimate",
+    "toc_extension",
+    "project_completion",
     "wbs_redirect",
     "dpr_entry",
     "dpr_entry_legacy",
@@ -8778,12 +8828,18 @@ def inject_maxek_layout():
     if not header_projects:
         try:
             project_sql, project_params = _append_tenant_filter(
-                "SELECT id, project_name FROM projects WHERE status != 'Closed' ORDER BY project_name LIMIT 50",
+                "SELECT id, project_code, project_name FROM projects "
+                "WHERE status != 'Closed' ORDER BY project_name LIMIT 50",
                 table_alias="",
             )
             project_rows = db.execute(project_sql, project_params).fetchall()
             header_projects = [
-                {"id": row["id"], "name": row["project_name"]} for row in project_rows
+                {
+                    "id": row["id"],
+                    "name": row["project_name"],
+                    "code": row["project_code"] or "",
+                }
+                for row in project_rows
             ]
         except sqlite3.OperationalError:
             header_projects = []
@@ -8817,6 +8873,16 @@ def inject_maxek_layout():
             role_label = "Owner"
     except Exception:
         pass
+    primary_dashboard_endpoint = (
+        "super_admin_platform_dashboard" if platform_super_admin else "dashboard"
+    )
+    page_nav = build_page_navigation(
+        request,
+        dept_slug=resolved_dept_portal_slug,
+        session_dept_slug=session_dept_slug,
+        nav_toolbar_slug=active_toolbar_slug,
+        primary_dashboard_endpoint=primary_dashboard_endpoint,
+    )
     return {
         "nav_groups": visible_nav_groups,
         "nav_items": [
@@ -8896,9 +8962,8 @@ def inject_maxek_layout():
         ),
         "dashboard_shell_command_centre_items": DASHBOARD_SHELL_COMMAND_CENTRE_ITEMS,
         "dashboard_shell_settings": DASHBOARD_SHELL_SETTINGS,
-        "primary_dashboard_endpoint": (
-            "super_admin_platform_dashboard" if platform_super_admin else "dashboard"
-        ),
+        "primary_dashboard_endpoint": primary_dashboard_endpoint,
+        **page_nav,
     }
 
 
@@ -9302,6 +9367,8 @@ def get_department_portals():
                 {"endpoint": "boq_management", "label": "Quantity Take-Off / BOQ", "icon": "fa-table-list", "active_endpoints": ["boq_management", "boq_multiple_entry", "boq_print"]},
                 {"endpoint": "cost_planning", "label": "Rate Analysis & Estimate", "icon": "fa-calculator", "active_endpoints": ["cost_planning", "cost_planning_reports"]},
                 {"endpoint": "revised_estimate", "label": "Revised Estimate", "icon": "fa-pen-ruler", "active_endpoints": ["revised_estimate"]},
+                {"endpoint": "toc_extension", "label": "TOC Extension", "icon": "fa-clock-rotate-left", "active_endpoints": ["toc_extension"]},
+                {"endpoint": "project_completion", "label": "Project Completion", "icon": "fa-flag-checkered", "active_endpoints": ["project_completion", "project_completion_document"]},
                 {"endpoint": "wbs_redirect", "label": "Planning & Cash Flow", "icon": "fa-timeline", "active_endpoints": ["wbs_redirect"]},
                 {"endpoint": "client_billing_register", "label": "Consultancy Billing", "icon": "fa-file-invoice-dollar", "active_endpoints": CLIENT_BILLING_NAV_ACTIVE},
                 {"endpoint": "reports", "label": "Corporate MIS Reports", "icon": "fa-chart-pie", "active_endpoints": ["reports", "download_report"]},
@@ -9329,6 +9396,8 @@ def get_department_portals():
                 {"endpoint": "wbs_redirect", "label": "WBS Planning", "icon": "fa-sitemap", "active_endpoints": ["wbs_redirect"]},
                 {"endpoint": "cost_planning", "label": "Costing", "icon": "fa-indian-rupee-sign", "active_endpoints": ["cost_planning", "project_expenses"]},
                 {"endpoint": "revised_estimate", "label": "Revised Estimate", "icon": "fa-pen-ruler", "active_endpoints": ["revised_estimate"]},
+                {"endpoint": "toc_extension", "label": "TOC Extension", "icon": "fa-clock-rotate-left", "active_endpoints": ["toc_extension"]},
+                {"endpoint": "project_completion", "label": "Project Completion", "icon": "fa-flag-checkered", "active_endpoints": ["project_completion", "project_completion_document"]},
                 {"endpoint": "reports", "label": "Project Reports", "icon": "fa-chart-pie", "active_endpoints": ["reports", "download_report"]},
             ],
         },
@@ -9513,6 +9582,8 @@ def get_department_portals():
                 {"endpoint": "dpr_client_bill_pending", "label": "Measurement Book", "icon": "fa-book", "active_endpoints": ["dpr_client_bill_pending", "dpr_client_bill_print"]},
                 {"endpoint": "cost_planning", "label": "Rate Analysis", "icon": "fa-chart-line", "active_endpoints": ["cost_planning", "cost_planning_reports"]},
                 {"endpoint": "revised_estimate", "label": "Revised Estimate", "icon": "fa-pen-ruler", "active_endpoints": ["revised_estimate"]},
+                {"endpoint": "toc_extension", "label": "TOC Extension", "icon": "fa-clock-rotate-left", "active_endpoints": ["toc_extension"]},
+                {"endpoint": "project_completion", "label": "Project Completion", "icon": "fa-flag-checkered", "active_endpoints": ["project_completion", "project_completion_document"]},
                 {"endpoint": "project_documents", "label": "Drawing Register", "icon": "fa-compass-drafting", "active_endpoints": ["project_documents", "project_document_download"]},
                 {"endpoint": "reports", "label": "Engineering Reports", "icon": "fa-file-excel", "active_endpoints": ["reports", "download_report"]},
             ],
@@ -22367,6 +22438,11 @@ def revised_estimate():
     filter_project = request.args.get("project_id", type=int)
     view_id = request.args.get("view", type=int)
     edit_id = request.args.get("edit", type=int)
+    active_tab = (request.args.get("tab") or "register").strip().lower()
+    if view_id:
+        active_tab = "register"
+    elif edit_id or request.args.get("tab") == "create":
+        active_tab = "create"
 
     if request.method == "POST" and request.form.get("form_action") == "save_estimate":
         try:
@@ -22376,7 +22452,14 @@ def revised_estimate():
             return redirect(url_for("revised_estimate", view=estimate_id, project_id=pid))
         except ValueError as exc:
             flash(str(exc))
-            return redirect(url_for("revised_estimate", project_id=filter_project) + "#revised-estimate-form")
+            return redirect(
+                url_for(
+                    "revised_estimate",
+                    tab="create",
+                    project_id=filter_project or request.form.get("project_id", type=int),
+                )
+                + "#revised-estimate-form"
+            )
 
     view_estimate = editing_estimate = None
     estimate_lines = []
@@ -22385,17 +22468,18 @@ def revised_estimate():
         view_estimate = get_revised_estimate(db, view_id)
         if not view_estimate:
             flash("Revised estimate not found.")
-            return redirect(url_for("revised_estimate", project_id=filter_project))
+            return redirect(url_for("revised_estimate", tab="register", project_id=filter_project))
         filter_project = view_estimate.get("project_id") or filter_project
     elif edit_id:
         editing_estimate = get_revised_estimate(db, edit_id)
         if not editing_estimate:
             flash("Revised estimate not found.")
-            return redirect(url_for("revised_estimate", project_id=filter_project))
+            return redirect(url_for("revised_estimate", tab="register", project_id=filter_project))
         filter_project = editing_estimate.get("project_id") or filter_project
         estimate_lines = editing_estimate.get("lines") or []
-    elif filter_project:
-        estimate_lines = load_boq_lines_for_project(db, filter_project)
+    elif active_tab == "create" and filter_project:
+        boq_id = request.args.get("boq_id", type=int)
+        estimate_lines = load_boq_lines_for_project(db, filter_project, boq_id=boq_id) if boq_id else []
 
     projects = query_db(
         "SELECT id, project_code, project_name FROM projects "
@@ -22412,9 +22496,269 @@ def revised_estimate():
         estimate_lines=estimate_lines,
         view_estimate=view_estimate,
         editing_estimate=editing_estimate,
-        active_tab="register",
+        active_tab=active_tab,
         boq_units=BOQ_UNITS,
     )
+
+
+@app.route("/toc-extension", methods=["GET", "POST"])
+@login_required
+def toc_extension():
+    db = get_db()
+    prepare_toc_extension_db(db)
+
+    active_tab = (request.args.get("tab") or "register").strip().lower()
+    if active_tab not in ("register", "agreement"):
+        active_tab = "register"
+
+    filter_project = request.args.get("project_id", type=int)
+    view_id = request.args.get("view", type=int)
+    edit_id = request.args.get("edit", type=int)
+
+    if request.method == "POST" and request.form.get("form_action") == "save_toc":
+        try:
+            toc_id = save_toc_extension(db, request.form, session.get("username", ""))
+            flash("TOC extension saved.")
+            pid = request.form.get("project_id", type=int) or filter_project
+            return redirect(url_for("toc_extension", view=toc_id, tab="register", project_id=pid))
+        except ValueError as exc:
+            flash(str(exc))
+            return redirect(
+                url_for(
+                    "toc_extension",
+                    tab="register",
+                    project_id=filter_project,
+                    edit=edit_id or None,
+                    new=1 if not edit_id else None,
+                )
+                + "#toc-form"
+            )
+
+    view_toc = editing_toc = None
+    project_context = None
+
+    if view_id:
+        view_toc = get_toc_extension(db, view_id)
+        if not view_toc:
+            flash("TOC extension not found.")
+            return redirect(url_for("toc_extension", tab=active_tab, project_id=filter_project))
+        filter_project = view_toc.get("project_id") or filter_project
+        active_tab = "register"
+    elif edit_id:
+        editing_toc = get_toc_extension(db, edit_id)
+        if not editing_toc:
+            flash("TOC extension not found.")
+            return redirect(url_for("toc_extension", tab=active_tab, project_id=filter_project))
+        filter_project = editing_toc.get("project_id") or filter_project
+        active_tab = "register"
+    elif filter_project:
+        project_context = get_project_agreement_context(db, filter_project)
+
+    projects = query_db(
+        "SELECT id, project_code, project_name FROM projects "
+        "WHERE COALESCE(project_status, status, '') NOT IN ('Closed', 'Cancelled') "
+        "ORDER BY project_name"
+    )
+    toc_records = list_toc_extensions(db, filter_project)
+    agreement_summaries = list_agreement_summaries(db, filter_project)
+    preview_document_number = next_toc_document_number(db)
+    today_date = date.today().isoformat()
+
+    return render_template(
+        "toc_extension.html",
+        projects=[dict(p) for p in projects],
+        filter_project=filter_project,
+        active_tab=active_tab,
+        toc_records=toc_records,
+        agreement_summaries=agreement_summaries,
+        view_toc=view_toc,
+        editing_toc=editing_toc,
+        project_context=project_context,
+        delay_reasons=DELAY_REASONS,
+        toc_statuses=TOC_STATUSES,
+        preview_document_number=preview_document_number,
+        today_date=today_date,
+    )
+
+
+@app.route("/api/toc-extension/project/<int:project_id>")
+@login_required
+def api_toc_extension_project(project_id):
+    db = get_db()
+    prepare_toc_extension_db(db)
+    ctx = get_project_agreement_context(db, project_id)
+    if not ctx:
+        return jsonify({"error": "Project not found"}), 404
+    return jsonify(ctx)
+
+
+@app.route("/api/toc-extension/preview-doc-no")
+@login_required
+def api_toc_extension_preview_doc_no():
+    db = get_db()
+    prepare_toc_extension_db(db)
+    toc_date = (request.args.get("toc_date") or "").strip()
+    return jsonify({"document_number": next_toc_document_number(db, toc_date or None)})
+
+
+def _collect_project_completion_uploads() -> dict[int, tuple[str, str]]:
+    uploads: dict[int, tuple[str, str]] = {}
+    for key in request.files:
+        if not key.startswith("doc_file_"):
+            continue
+        suffix = key[len("doc_file_") :]
+        if not suffix.isdigit():
+            continue
+        file_storage = request.files.get(key)
+        if not file_storage or not file_storage.filename:
+            continue
+        err = _validate_project_upload(file_storage)
+        if err:
+            raise ValueError(err)
+        stored = save_file(file_storage, PROJECT_COMPLETION_DOCS_DIR)
+        if not stored:
+            raise ValueError(f"Could not save {file_storage.filename}.")
+        uploads[int(suffix)] = (stored, file_storage.filename)
+    return uploads
+
+
+@app.route("/project-completion", methods=["GET", "POST"])
+@login_required
+def project_completion():
+    db = get_db()
+    prepare_project_completion_db(db)
+
+    active_tab = (request.args.get("tab") or "register").strip().lower()
+    if active_tab not in ("register", "details"):
+        active_tab = "register"
+
+    filter_project = request.args.get("project_id", type=int)
+    view_id = request.args.get("view", type=int)
+    edit_id = request.args.get("edit", type=int)
+
+    if request.method == "POST" and request.form.get("form_action") == "save_completion":
+        try:
+            uploaded_files = _collect_project_completion_uploads()
+            completion_id = save_project_completion(
+                db,
+                request.form,
+                session.get("username", ""),
+                uploaded_files,
+            )
+            flash("Project completion details saved.")
+            pid = request.form.get("project_id", type=int) or filter_project
+            return redirect(
+                url_for("project_completion", view=completion_id, tab="register", project_id=pid)
+            )
+        except ValueError as exc:
+            flash(str(exc))
+            return redirect(
+                url_for(
+                    "project_completion",
+                    tab="details",
+                    project_id=filter_project,
+                    edit=edit_id or None,
+                    new=1 if not edit_id else None,
+                )
+                + "#pc-form"
+            )
+
+    view_record = editing_record = None
+    project_context = None
+
+    if view_id:
+        view_record = get_project_completion(db, view_id)
+        if not view_record:
+            flash("Project completion record not found.")
+            return redirect(url_for("project_completion", tab=active_tab, project_id=filter_project))
+        filter_project = view_record.get("project_id") or filter_project
+        active_tab = "register"
+    elif edit_id:
+        editing_record = get_project_completion(db, edit_id)
+        if not editing_record:
+            flash("Project completion record not found.")
+            return redirect(url_for("project_completion", tab=active_tab, project_id=filter_project))
+        filter_project = editing_record.get("project_id") or filter_project
+        active_tab = "details"
+    elif filter_project:
+        project_context = get_project_completion_context(db, filter_project)
+
+    projects = query_db(
+        "SELECT id, project_code, project_name FROM projects "
+        "WHERE COALESCE(project_status, status, '') NOT IN ('Closed', 'Cancelled') "
+        "ORDER BY project_name"
+    )
+    completion_records = list_project_completions(db, filter_project)
+    preview_document_number = next_completion_document_number(db)
+    today_date = date.today().isoformat()
+
+    return render_template(
+        "project_completion.html",
+        projects=[dict(p) for p in projects],
+        filter_project=filter_project,
+        active_tab=active_tab,
+        completion_records=completion_records,
+        view_record=view_record,
+        editing_record=editing_record,
+        project_context=project_context,
+        completion_doc_types=COMPLETION_DOC_TYPES,
+        completion_statuses=COMPLETION_STATUSES,
+        preview_document_number=preview_document_number,
+        today_date=today_date,
+    )
+
+
+@app.route("/project-completion/document/<int:doc_id>")
+@login_required
+def project_completion_document(doc_id):
+    db = get_db()
+    prepare_project_completion_db(db)
+    row = query_db(
+        "SELECT stored_filename, original_filename FROM project_completion_documents WHERE id=?",
+        (doc_id,),
+        one=True,
+    )
+    if not row or not row["stored_filename"]:
+        abort(404)
+    path = os.path.join(PROJECT_COMPLETION_DOCS_DIR, row["stored_filename"])
+    if not os.path.isfile(path):
+        abort(404)
+    download_name = row["original_filename"] or row["stored_filename"]
+    ext = os.path.splitext(download_name)[1].lower()
+    mimetype = {
+        ".pdf": "application/pdf",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+    }.get(ext, "application/octet-stream")
+    as_attachment = request.args.get("download") == "1"
+    return send_file(
+        path,
+        mimetype=mimetype,
+        as_attachment=as_attachment,
+        download_name=download_name,
+        conditional=True,
+    )
+
+
+@app.route("/api/project-completion/project/<int:project_id>")
+@login_required
+def api_project_completion_project(project_id):
+    db = get_db()
+    prepare_project_completion_db(db)
+    ctx = get_project_completion_context(db, project_id)
+    if not ctx:
+        return jsonify({"error": "Project not found"}), 404
+    return jsonify(ctx)
+
+
+@app.route("/api/project-completion/preview-doc-no")
+@login_required
+def api_project_completion_preview_doc_no():
+    db = get_db()
+    prepare_project_completion_db(db)
+    ref_date = (request.args.get("completion_date") or "").strip()
+    return jsonify({"document_number": next_completion_document_number(db, ref_date or None)})
 
 
 @app.route("/cost-planning", methods=["GET", "POST"])

@@ -347,6 +347,8 @@ from helpdesk_service import (
     delete_help_topic,
 )
 
+from navigation_service import build_page_navigation
+
 from ui_shell_config import (
     APP_VERSION_LABEL,
     DASHBOARD_OVERVIEW_QUICK_LINKS,
@@ -8817,6 +8819,16 @@ def inject_maxek_layout():
             role_label = "Owner"
     except Exception:
         pass
+    primary_dashboard_endpoint = (
+        "super_admin_platform_dashboard" if platform_super_admin else "dashboard"
+    )
+    page_nav = build_page_navigation(
+        request,
+        dept_slug=resolved_dept_portal_slug,
+        session_dept_slug=session_dept_slug,
+        nav_toolbar_slug=active_toolbar_slug,
+        primary_dashboard_endpoint=primary_dashboard_endpoint,
+    )
     return {
         "nav_groups": visible_nav_groups,
         "nav_items": [
@@ -8896,9 +8908,8 @@ def inject_maxek_layout():
         ),
         "dashboard_shell_command_centre_items": DASHBOARD_SHELL_COMMAND_CENTRE_ITEMS,
         "dashboard_shell_settings": DASHBOARD_SHELL_SETTINGS,
-        "primary_dashboard_endpoint": (
-            "super_admin_platform_dashboard" if platform_super_admin else "dashboard"
-        ),
+        "primary_dashboard_endpoint": primary_dashboard_endpoint,
+        **page_nav,
     }
 
 
@@ -22412,8 +22423,6 @@ def revised_estimate():
         estimate_lines=estimate_lines,
         view_estimate=view_estimate,
         editing_estimate=editing_estimate,
-        active_tab="register",
-        boq_units=BOQ_UNITS,
     )
 
 

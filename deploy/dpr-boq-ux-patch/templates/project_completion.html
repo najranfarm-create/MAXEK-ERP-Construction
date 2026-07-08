@@ -1,0 +1,320 @@
+{% extends 'base_maxek.html' %}
+{% set page_title = 'Project Completion Details' %}
+{% set breadcrumbs = '<a href="' ~ url_for('dashboard') ~ '">Home</a> &gt; Projects &gt; Project Completion' %}
+{% block page_actions %}
+<a href="{{ url_for('projects') }}" class="erp-btn erp-btn-ghost"><i class="fa-solid fa-folder-tree"></i> Project Master</a>
+<a href="{{ url_for('project_completion', tab='details', project_id=filter_project, new=1) }}#pc-form" class="erp-btn erp-btn-primary"><i class="fa-solid fa-plus"></i> New Completion Record</a>
+{% endblock %}
+{% block head_extra %}
+<script src="{{ url_for('static', filename='js/project-completion.js') }}?v=20260708-pc" defer></script>
+{% endblock %}
+{% block content %}
+<div class="module-layout project-completion-module module-layout--entry-focus{% if not editing_record and not request.args.get('new') %} module-layout--list-only{% endif %}" data-pc-module>
+  <div class="erp-form-card erp-form-card--tabs" style="margin-bottom:1rem;">
+    <div class="erp-tab-bar">
+      <a href="{{ url_for('project_completion', tab='register', project_id=filter_project or none) }}" class="erp-tab{% if active_tab == 'register' %} active{% endif %}">Register</a>
+      <a href="{{ url_for('project_completion', tab='details', project_id=filter_project or none) }}{% if not editing_record %}?new=1{% endif %}#pc-form" class="erp-tab{% if active_tab == 'details' %} active{% endif %}">Completion Details</a>
+    </div>
+  </div>
+
+  {% if active_tab == 'register' and not view_record %}
+  <div class="erp-form-card" style="margin-bottom:1rem;">
+    <form method="get" class="erp-form-grid">
+      <input type="hidden" name="tab" value="register">
+      <div class="erp-field span-2">
+        <select name="project_id" class="has-value" onchange="this.form.submit()">
+          <option value="">All projects</option>
+          {% for p in projects %}
+          <option value="{{ p.id }}"{% if filter_project == p.id %} selected{% endif %}>{{ p.project_code or p.id }} — {{ p.project_name }}</option>
+          {% endfor %}
+        </select>
+        <label>Project</label>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+  {% if view_record %}
+  <div class="erp-form-card" style="margin-bottom:1rem;">
+    <h3 class="erp-form-title">{{ view_record.document_number }} — Completion Details</h3>
+    <div class="erp-form-grid">
+      <p><strong>Project:</strong> {{ view_record.project_code or view_record.project_id }} — {{ view_record.project_name or '—' }}</p>
+      <p><strong>Status:</strong> {{ view_record.status or 'Draft' }}</p>
+      <p><strong>Project Completion Date:</strong> {{ view_record.project_completion_date or '—' }}</p>
+      <p><strong>Warranty Completion Date:</strong> {{ view_record.warranty_completion_date or '—' }}</p>
+      <p><strong>Maintenance End:</strong> {{ view_record.maintenance_end_date or '—' }}</p>
+      <p class="span-2"><strong>Maintenance Conditions:</strong> {{ view_record.maintenance_conditions or '—' }}</p>
+      <p><strong>Certificate Stitching:</strong> {% if view_record.certificate_stitching_required %}Required{% else %}Not required{% endif %}
+        {% if view_record.certificate_stitched %} · <span class="erp-badge">Stitched{% if view_record.certificate_stitch_date %} on {{ view_record.certificate_stitch_date }}{% endif %}</span>{% endif %}
+      </p>
+      {% if view_record.certificate_stitch_remarks %}<p class="span-2"><strong>Stitch Notes:</strong> {{ view_record.certificate_stitch_remarks }}</p>{% endif %}
+      {% if view_record.remarks %}<p class="span-2"><strong>Remarks:</strong> {{ view_record.remarks }}</p>{% endif %}
+    </div>
+    {% if view_record.documents %}
+    <div class="erp-table-scroll" style="margin-top:1rem;">
+      <table class="erp-table erp-table-module">
+        <thead>
+          <tr>
+            <th>Type</th><th>Name</th><th>Doc Date</th><th>Sent</th><th>Received</th><th>Stitch</th><th>File</th><th>Remarks</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for doc in view_record.documents %}
+          <tr>
+            <td>{{ doc.document_type or '—' }}</td>
+            <td>{{ doc.document_name or '—' }}</td>
+            <td>{{ doc.document_date or '—' }}</td>
+            <td>{{ doc.sent_date or '—' }}</td>
+            <td>{{ doc.received_date or '—' }}</td>
+            <td>{% if doc.include_in_stitch %}Include{% if doc.stitched %} ✓{% endif %}{% else %}—{% endif %}</td>
+            <td>{% if doc.stored_filename %}<a href="{{ url_for('project_completion_document', doc_id=doc.id) }}" target="_blank">{{ doc.original_filename or 'View' }}</a>{% else %}—{% endif %}</td>
+            <td>{{ doc.remarks or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    <div class="erp-form-actions" style="margin-top:1rem;">
+      <a href="{{ url_for('project_completion', tab='details', edit=view_record.id, project_id=filter_project) }}#pc-form" class="erp-btn erp-btn-primary erp-btn-sm">Edit</a>
+      <a href="{{ url_for('project_completion', tab='register', project_id=filter_project) }}" class="erp-btn erp-btn-ghost erp-btn-sm">Back to register</a>
+    </div>
+  </div>
+  {% elif active_tab == 'details' %}
+  <section class="erp-form-card erp-data-entry-panel" id="pc-form" data-entry-panel data-entry-list="pc-register-list"{% if not editing_record and not request.args.get('new') %} hidden{% endif %}>
+    <div class="erp-data-entry-header" role="toolbar" aria-label="Entry navigation">
+      <div class="erp-data-entry-header__title">
+        <button type="button" class="erp-data-entry-nav erp-data-entry-nav--back" data-entry-back aria-label="Back to list"><i class="fa-solid fa-arrow-left"></i></button>
+        <h3 class="erp-form-title">{% if editing_record %}Edit {{ editing_record.document_number }}{% else %}Project Completion Details{% endif %}</h3>
+      </div>
+      <button type="button" class="erp-data-entry-nav erp-data-entry-nav--close" data-entry-close aria-label="Close entry"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <form method="post" enctype="multipart/form-data" class="erp-form-grid" data-pc-form id="pc-save-form">
+      <input type="hidden" name="form_action" value="save_completion">
+      <input type="hidden" name="project_id" id="pc_project_id" value="{{ filter_project or (editing_record.project_id if editing_record else '') }}">
+      {% if editing_record %}<input type="hidden" name="completion_id" value="{{ editing_record.id }}">{% endif %}
+
+      <div class="erp-field">
+        <input type="text" id="pc_document_number" value="{{ editing_record.document_number if editing_record else preview_document_number }}" readonly class="erp-input--readonly">
+        <label>Document No. (Auto)</label>
+      </div>
+      <div class="erp-field">
+        <select id="pc_project_name" data-pc-project-name class="has-value">
+          <option value="">— Select project name —</option>
+          {% for p in projects %}
+          <option value="{{ p.id }}" data-project-code="{{ p.project_code or p.id }}" {% if filter_project == p.id or (editing_record and editing_record.project_id == p.id) %}selected{% endif %}>{{ p.project_name }}</option>
+          {% endfor %}
+        </select>
+        <label>Project Name *</label>
+      </div>
+      <div class="erp-field">
+        <select id="pc_project_code" data-pc-project-code class="has-value">
+          <option value="">— Select project number —</option>
+          {% for p in projects %}
+          <option value="{{ p.id }}" data-project-name="{{ p.project_name }}" {% if filter_project == p.id or (editing_record and editing_record.project_id == p.id) %}selected{% endif %}>{{ p.project_code or p.id }}</option>
+          {% endfor %}
+        </select>
+        <label>Project Number *</label>
+      </div>
+
+      <div class="erp-field span-2"><h4 class="erp-form-subtitle">Completion &amp; Warranty</h4></div>
+      <div class="erp-field">
+        <input type="date" name="project_completion_date" id="pc_completion_date" required value="{{ editing_record.project_completion_date if editing_record else (project_context.planned_completion_date if project_context else today_date) }}">
+        <label>Project Completion Date *</label>
+      </div>
+      <div class="erp-field">
+        <input type="date" name="warranty_completion_date" id="pc_warranty_date" value="{{ editing_record.warranty_completion_date if editing_record else (project_context.warranty_completion_date if project_context else '') }}">
+        <label>Warranty Completion Date</label>
+      </div>
+      <div class="erp-field">
+        <input type="date" name="maintenance_end_date" value="{{ editing_record.maintenance_end_date if editing_record else '' }}">
+        <label>Maintenance Period End</label>
+      </div>
+      <div class="erp-field">
+        <select name="status">
+          {% for st in completion_statuses %}
+          <option value="{{ st }}"{% if editing_record and editing_record.status == st %} selected{% elif not editing_record and st == 'Draft' %} selected{% endif %}>{{ st }}</option>
+          {% endfor %}
+        </select>
+        <label>Status</label>
+      </div>
+      <div class="erp-field span-2">
+        <textarea name="maintenance_conditions" rows="3" placeholder="Maintenance obligations, AMC scope, defect liability terms…">{{ editing_record.maintenance_conditions if editing_record else (project_context.last_maintenance_conditions if project_context else '') }}</textarea>
+        <label>Maintenance Conditions</label>
+      </div>
+
+      <div class="span-2">
+        <h4 class="erp-form-subtitle">Completion Documents &amp; Certificates
+          <button type="button" class="erp-btn erp-btn-ghost erp-btn-sm" id="pc-add-doc"><i class="fa-solid fa-plus"></i> Add document</button>
+        </h4>
+        <p class="erp-form-hint">Record completion certificates and handover documents with issue/sent dates. Mark documents to include in certificate stitching.</p>
+        <div class="erp-table-scroll">
+          <table class="erp-table erp-table-module" id="pc-docs-table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Document Name</th>
+                <th>Doc Date</th>
+                <th>Sent Date</th>
+                <th>Received</th>
+                <th>Stitch</th>
+                <th>Stitched</th>
+                <th>Upload</th>
+                <th>Remarks</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="pc-docs-body">
+              {% set doc_lines = editing_record.documents if editing_record else [] %}
+              {% if not doc_lines %}
+              <tr class="pc-doc-row" data-pc-doc-row>
+                <td>
+                  <select name="doc_type" class="erp-input--sm">
+                    <option value="">— Type —</option>
+                    {% for t in completion_doc_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+                  </select>
+                </td>
+                <td><input type="text" name="doc_name" placeholder="Document name"></td>
+                <td><input type="date" name="doc_date"></td>
+                <td><input type="date" name="doc_sent_date"></td>
+                <td><input type="date" name="doc_received_date"></td>
+                <td><label class="dpr-inline-check"><input type="checkbox" name="doc_include_stitch" value="1"></label></td>
+                <td><label class="dpr-inline-check"><input type="checkbox" name="doc_stitched" value="1"></label></td>
+                <td><input type="file" name="doc_file_0" accept=".pdf,.jpg,.jpeg,.png"></td>
+                <td><input type="text" name="doc_remarks" placeholder="Remarks"></td>
+                <td><button type="button" class="erp-btn erp-btn-ghost erp-btn-sm pc-remove-doc">&times;</button></td>
+              </tr>
+              {% else %}
+              {% for doc in doc_lines %}
+              <tr class="pc-doc-row" data-pc-doc-row>
+                <td>
+                  <input type="hidden" name="doc_id" value="{{ doc.id }}">
+                  <select name="doc_type" class="erp-input--sm">
+                    <option value="">— Type —</option>
+                    {% for t in completion_doc_types %}
+                    <option value="{{ t }}"{% if doc.document_type == t %} selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                  </select>
+                </td>
+                <td><input type="text" name="doc_name" value="{{ doc.document_name or '' }}"></td>
+                <td><input type="date" name="doc_date" value="{{ doc.document_date or '' }}"></td>
+                <td><input type="date" name="doc_sent_date" value="{{ doc.sent_date or '' }}"></td>
+                <td><input type="date" name="doc_received_date" value="{{ doc.received_date or '' }}"></td>
+                <td><label class="dpr-inline-check"><input type="checkbox" name="doc_include_stitch" value="1"{% if doc.include_in_stitch %} checked{% endif %}></label></td>
+                <td><label class="dpr-inline-check"><input type="checkbox" name="doc_stitched" value="1"{% if doc.stitched %} checked{% endif %}></label></td>
+                <td>
+                  {% if doc.stored_filename %}<a href="{{ url_for('project_completion_document', doc_id=doc.id) }}" target="_blank" class="erp-btn erp-btn-ghost erp-btn-sm">{{ doc.original_filename or 'File' }}</a>{% endif %}
+                  <input type="file" name="doc_file_{{ loop.index0 }}" accept=".pdf,.jpg,.jpeg,.png">
+                </td>
+                <td><input type="text" name="doc_remarks" value="{{ doc.remarks or '' }}"></td>
+                <td><button type="button" class="erp-btn erp-btn-ghost erp-btn-sm pc-remove-doc">&times;</button></td>
+              </tr>
+              {% endfor %}
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="span-2 erp-form-card" style="padding:1rem; margin-top:0.5rem;" data-pc-stitch-panel>
+        <h4 class="erp-form-subtitle">Certificate Stitching</h4>
+        <p class="erp-form-hint">When multiple completion certificates must be bound/stitched together, enable stitching and record the completion date.</p>
+        <div class="erp-form-grid">
+          <div class="erp-field">
+            <select name="certificate_stitching_required" id="pc_stitch_required">
+              <option value="no"{% if not editing_record or not editing_record.certificate_stitching_required %} selected{% endif %}>No</option>
+              <option value="yes"{% if editing_record and editing_record.certificate_stitching_required %} selected{% endif %}>Yes — stitching required</option>
+            </select>
+            <label>Certificate Stitching Option</label>
+          </div>
+          <div class="erp-field">
+            <select name="certificate_stitched" id="pc_stitched">
+              <option value="no"{% if not editing_record or not editing_record.certificate_stitched %} selected{% endif %}>Pending</option>
+              <option value="yes"{% if editing_record and editing_record.certificate_stitched %} selected{% endif %}>Stitching completed</option>
+            </select>
+            <label>Stitching Status</label>
+          </div>
+          <div class="erp-field">
+            <input type="date" name="certificate_stitch_date" id="pc_stitch_date" value="{{ editing_record.certificate_stitch_date if editing_record else '' }}">
+            <label>Stitching Completed Date</label>
+          </div>
+          <div class="erp-field span-2">
+            <textarea name="certificate_stitch_remarks" rows="2" placeholder="Stitching notes — which certificates combined, copy handed to client, etc.">{{ editing_record.certificate_stitch_remarks if editing_record else '' }}</textarea>
+            <label>Stitching Remarks</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="erp-field span-2">
+        <textarea name="remarks" rows="2" placeholder="General remarks">{{ editing_record.remarks if editing_record else '' }}</textarea>
+        <label>Remarks</label>
+      </div>
+
+      <div class="erp-form-actions span-2">
+        <button type="submit" class="erp-btn erp-btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Completion Details</button>
+        <a href="{{ url_for('project_completion', tab='register', project_id=filter_project) }}" class="erp-btn erp-btn-ghost">Cancel</a>
+      </div>
+    </form>
+  </section>
+  {% endif %}
+
+  {% if active_tab == 'register' and not view_record %}
+  <div class="erp-form-card" id="pc-register-list">
+    <h3 class="erp-form-title">Project Completion Register</h3>
+    <div class="erp-table-scroll">
+      <table class="erp-table erp-table-module">
+        <thead>
+          <tr>
+            <th>Doc No.</th>
+            <th>Project</th>
+            <th>Completion Date</th>
+            <th>Warranty End</th>
+            <th>Stitching</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in completion_records %}
+          <tr>
+            <td>{{ row.document_number }}</td>
+            <td>{{ row.project_code or row.project_id }} — {{ row.project_name or '—' }}</td>
+            <td>{{ row.project_completion_date or '—' }}</td>
+            <td>{{ row.warranty_completion_date or '—' }}</td>
+            <td>{% if row.certificate_stitching_required %}{% if row.certificate_stitched %}Done{% else %}Pending{% endif %}{% else %}—{% endif %}</td>
+            <td>{{ row.status or 'Draft' }}</td>
+            <td style="white-space:nowrap;">
+              <a href="{{ url_for('project_completion', view=row.id, project_id=row.project_id) }}" class="erp-btn erp-btn-ghost erp-btn-sm">View</a>
+              <a href="{{ url_for('project_completion', tab='details', edit=row.id, project_id=row.project_id) }}#pc-form" class="erp-btn erp-btn-ghost erp-btn-sm">Edit</a>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7">No project completion records yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<template id="pc-doc-row-template">
+  <tr class="pc-doc-row" data-pc-doc-row>
+    <td>
+      <select name="doc_type" class="erp-input--sm">
+        <option value="">— Type —</option>
+        {% for t in completion_doc_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+      </select>
+    </td>
+    <td><input type="text" name="doc_name" placeholder="Document name"></td>
+    <td><input type="date" name="doc_date"></td>
+    <td><input type="date" name="doc_sent_date"></td>
+    <td><input type="date" name="doc_received_date"></td>
+    <td><label class="dpr-inline-check"><input type="checkbox" name="doc_include_stitch" value="1"></label></td>
+    <td><label class="dpr-inline-check"><input type="checkbox" name="doc_stitched" value="1"></label></td>
+    <td><input type="file" name="doc_file___IDX__" accept=".pdf,.jpg,.jpeg,.png"></td>
+    <td><input type="text" name="doc_remarks" placeholder="Remarks"></td>
+    <td><button type="button" class="erp-btn erp-btn-ghost erp-btn-sm pc-remove-doc">&times;</button></td>
+  </tr>
+</template>
+{% endblock %}
