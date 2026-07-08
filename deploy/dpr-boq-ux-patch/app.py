@@ -17896,15 +17896,18 @@ def approval_detail(approval_id):
 @login_required
 def approval_action():
     db = get_db()
-    action = request.form.get("action", "")
+    action = (request.form.get("action") or "").strip()
+    if action == "verify":
+        action = "approve"
     comments = request.form.get("comments", "")
     role = request.form.get("role") or request.args.get("role") or "checker"
-    bulk_ids = [
-        int(value)
-        for value in request.form.getlist("approval_ids")
-        if str(value).strip().isdigit()
-    ][:10]
-    single_id = request.form.get("approval_id", "").strip()
+    bulk_ids = []
+    for value in request.form.getlist("approval_ids"):
+        text = str(value).strip()
+        if text.isdigit():
+            bulk_ids.append(int(text))
+    bulk_ids = bulk_ids[:10]
+    single_id = (request.form.get("approval_id") or "").strip()
     if not bulk_ids and single_id.isdigit():
         bulk_ids = [int(single_id)]
     if not bulk_ids:
@@ -17914,24 +17917,36 @@ def approval_action():
     ok_count = 0
     last_message = "No items processed."
     for approval_id in bulk_ids:
-        ok, message = advance_approval(
-            db,
-            approval_id,
-            session.get("user_id"),
-            action,
-            comments,
-            is_admin_user(),
-        )
+        try:
+            ok, message = advance_approval(
+                db,
+                approval_id,
+                session.get("user_id"),
+                action,
+                comments,
+                is_admin_user(),
+            )
+        except Exception as exc:
+            app.logger.exception("approval_action failed for id=%s", approval_id)
+            ok, message = False, str(exc)
         last_message = message
         if ok:
             ok_count += 1
-            _sync_payroll_run_after_workflow(db, approval_id)
-            _sync_accounts_after_workflow(db, approval_id)
-            _sync_treasury_after_workflow(db, approval_id)
-            _sync_store_after_workflow(db, approval_id)
-            _sync_subcontract_payments_after_workflow(db, approval_id)
-            _sync_client_billing_after_workflow(db, approval_id)
-    db.commit()
+            try:
+                _sync_payroll_run_after_workflow(db, approval_id)
+                _sync_accounts_after_workflow(db, approval_id)
+                _sync_treasury_after_workflow(db, approval_id)
+                _sync_store_after_workflow(db, approval_id)
+                _sync_subcontract_payments_after_workflow(db, approval_id)
+                _sync_client_billing_after_workflow(db, approval_id)
+            except Exception:
+                app.logger.exception("post-approval sync failed for id=%s", approval_id)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        flash("Unable to save approval changes.", "warning")
+        return redirect(request.referrer or url_for("approvals", role=role))
     if len(bulk_ids) == 1:
         flash(last_message, "success" if ok_count else "warning")
     else:

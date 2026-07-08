@@ -3,6 +3,19 @@
 
   const MAX_DEFAULT = 10;
 
+  function postApproval(actionUrl, payload) {
+    const body = new FormData();
+    Object.keys(payload).forEach(function (key) {
+      body.append(key, payload[key]);
+    });
+    return fetch(actionUrl, {
+      method: "POST",
+      body: body,
+      credentials: "same-origin",
+      redirect: "manual",
+    });
+  }
+
   function initApprovalsBulk() {
     const root = document.querySelector("[data-approvals-module]");
     if (!root) {
@@ -10,11 +23,11 @@
     }
 
     const maxSelected = parseInt(root.getAttribute("data-bulk-max") || String(MAX_DEFAULT), 10) || MAX_DEFAULT;
-    const bulkAction = (root.getAttribute("data-bulk-action") || "").trim();
+    const bulkAction = (root.getAttribute("data-bulk-action") || "approve").trim() || "approve";
     const actionUrl = root.getAttribute("data-action-url") || "";
     const role = root.getAttribute("data-approval-role") || "checker";
     const toolbar = root.querySelector("[data-approvals-bulk-toolbar]");
-    if (!toolbar || !bulkAction || !actionUrl) {
+    if (!toolbar || !actionUrl) {
       return;
     }
 
@@ -43,10 +56,6 @@
       }
     }
 
-    function setChecked(check, checked) {
-      check.checked = checked;
-    }
-
     root.addEventListener("change", function (event) {
       const target = event.target;
       if (!(target instanceof HTMLInputElement)) {
@@ -56,7 +65,7 @@
       if (target.matches("[data-approvals-select-all]")) {
         const checks = rowChecks();
         checks.forEach((check, index) => {
-          setChecked(check, target.checked && index < maxSelected);
+          check.checked = target.checked && index < maxSelected;
         });
         updateUi();
         return;
@@ -78,52 +87,19 @@
         if (!ids.length) {
           return;
         }
-        const label = bulkAction === "verify" ? "verify" : "approve";
-        if (!window.confirm("Apply " + label + " to " + ids.length + " selected item(s)?")) {
+        const verb = role === "checker" ? "verify" : "approve";
+        if (!window.confirm("Apply " + verb + " to " + ids.length + " selected item(s)?")) {
           return;
         }
         submitBtn.disabled = true;
         submitBtn.textContent = "Processing…";
 
         (async function runBulk() {
-          const form = document.createElement("form");
-          form.method = "post";
-          form.action = actionUrl;
-          form.style.display = "none";
-
-          ids.forEach(function (id) {
-            const input = document.createElement("input");
-            input.type = "hidden";
-            input.name = "approval_ids";
-            input.value = id;
-            form.appendChild(input);
-          });
-
-          ["action", "role"].forEach(function (name) {
-            const input = document.createElement("input");
-            input.type = "hidden";
-            input.name = name;
-            input.value = name === "action" ? bulkAction : role;
-            form.appendChild(input);
-          });
-
-          document.body.appendChild(form);
-
-          if (typeof form.requestSubmit === "function") {
-            form.requestSubmit();
-            return;
-          }
-
           for (let i = 0; i < ids.length; i += 1) {
-            const body = new FormData();
-            body.append("approval_id", ids[i]);
-            body.append("action", bulkAction);
-            body.append("role", role);
-            await fetch(actionUrl, {
-              method: "POST",
-              body: body,
-              credentials: "same-origin",
-              redirect: "manual",
+            await postApproval(actionUrl, {
+              approval_id: ids[i],
+              action: bulkAction,
+              role: role,
             });
           }
           window.location.reload();

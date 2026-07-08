@@ -54,6 +54,14 @@ if [[ -n "${SETTINGS_BAK}" ]]; then
   echo "  OK restored settings.html from backup"
 fi
 
+# Optional: restore production approvals.html when RESTORE_APPROVALS_TEMPLATE=1
+APPROVALS_TPL="${LIVE}/templates/approvals.html"
+APPROVALS_BAK="$(ls -t "${APPROVALS_TPL}".bak-* 2>/dev/null | head -1 || true)"
+if [[ -n "${APPROVALS_BAK}" ]] && [[ "${RESTORE_APPROVALS_TEMPLATE:-0}" == "1" ]]; then
+  cp -a "${APPROVALS_BAK}" "${APPROVALS_TPL}"
+  echo "  OK restored approvals.html from backup"
+fi
+
 for f in \
   static/css/maxek-dashboard.css \
   static/css/maxek-pro-dashboard.css \
