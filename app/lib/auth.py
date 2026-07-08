@@ -55,3 +55,24 @@ def role_required(*roles: str) -> Callable[[F], F]:
         return wrapped  # type: ignore[return-value]
 
     return decorator
+
+
+def owner_required(get_owner_id: Callable[..., int | None]) -> Callable[[F], F]:
+    """Ensure the current user owns a resource (or is admin)."""
+
+    def decorator(view: F) -> F:
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            user = get_current_user_or_none()
+            if user is None:
+                abort(401)
+            if user.role == "admin":
+                return view(*args, **kwargs)
+            owner_id = get_owner_id(*args, **kwargs)
+            if owner_id is None or owner_id != user.id:
+                abort(403)
+            return view(*args, **kwargs)
+
+        return wrapped  # type: ignore[return-value]
+
+    return decorator

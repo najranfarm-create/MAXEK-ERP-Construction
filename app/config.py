@@ -34,6 +34,17 @@ class Config:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     REMEMBER_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+    ALLOW_REGISTRATION = os.environ.get("ALLOW_REGISTRATION", "true").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
 
     ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@maxek.local")
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "change-me")

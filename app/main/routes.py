@@ -1,5 +1,5 @@
-from flask import jsonify, render_template
-from flask_login import login_required
+from flask import jsonify, redirect, render_template, url_for
+from flask_login import current_user, login_required
 from sqlalchemy import text
 
 from app.extensions import db
@@ -18,7 +18,16 @@ def health():
 
 @main_bp.route("/")
 def index():
+    if current_user.is_authenticated:
+        return redirect(url_for("main.dashboard"))
     return render_template("main/index.html")
+
+
+@main_bp.route("/api/me")
+@login_required
+def api_me():
+    user = get_current_user()
+    return jsonify(user.to_dict())
 
 
 @main_bp.route("/dashboard")

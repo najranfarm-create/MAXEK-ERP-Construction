@@ -75,6 +75,22 @@ flask --app run run --debug
 - `site_supervisor` — site-level operations
 - `admin` — full system access
 
+### API
+
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `GET /health` | No | Database health check |
+| `GET /api/me` | Yes | Current user JSON |
+
+Unauthenticated API requests return `401` JSON (not an HTML redirect).
+
+### Environment
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ALLOW_REGISTRATION` | `true` | Set `false` to disable `/auth/register` |
+| `SESSION_COOKIE_SECURE` | `false` | Set `true` when serving over HTTPS |
+
 ### Protecting routes
 
 Add this **inside a Python file** (e.g. `app/main/routes.py`), not in the terminal:

@@ -1,4 +1,4 @@
-from flask import flash, redirect, render_template, request, url_for
+from flask import current_app, flash, redirect, render_template, request, url_for
 from flask_login import login_required, login_user, logout_user
 
 from app.auth.forms import LoginForm, ProfileForm, RegisterForm
@@ -47,6 +47,10 @@ def logout():
 
 @auth_bp.route("/register", methods=["GET", "POST"])
 def register():
+    if not current_app.config.get("ALLOW_REGISTRATION", True):
+        flash("Registration is disabled. Contact an administrator.", "warning")
+        return redirect(url_for("auth.login"))
+
     if get_current_user_or_none():
         return redirect(url_for("main.dashboard"))
 
@@ -76,6 +80,13 @@ def profile():
 
     if form.validate_on_submit():
         user.name = form.name.data.strip()
+
+        if form.new_password.data:
+            if not user.check_password(form.current_password.data):
+                flash("Current password is incorrect.", "danger")
+                return render_template("auth/profile.html", form=form, user=user)
+            user.set_password(form.new_password.data)
+
         user.touch()
         db.session.commit()
         flash("Profile updated.", "success")
