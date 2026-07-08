@@ -1,0 +1,57 @@
+<header class="pro-dash-header top-utility-strip">
+  <div class="pro-dash-header-left header-left">
+    <button type="button" class="sidebar-toggle pro-dash-mobile-nav-toggle" data-sidebar-toggle aria-label="Toggle navigation menu" aria-expanded="false">
+      <i class="fa-solid fa-bars"></i>
+    </button>
+
+    <a class="header-brand" href="{{ url_for(primary_dashboard_endpoint|default('dashboard')) }}">
+      <img
+        src="{{ url_for('static', filename='images/maxek-logo.png') }}"
+        alt=""
+        class="maxek-logo maxek-logo--header"
+        width="28"
+        height="28"
+        aria-hidden="true"
+      >
+      <span class="header-logo">MAX<span>EK</span></span>
+      <span class="header-brand-sub">ERP</span>
+    </a>
+
+    {% if context_companies %}
+    <select class="company-select" name="company" aria-label="Company selection" data-company-select>
+      <option value="">Company</option>
+      {% for company in context_companies %}
+      <option value="{{ company.id }}" data-code="{{ company.code or '' }}"{% if company.id == selected_company_id %} selected{% endif %}>{{ company.name }}</option>
+      {% endfor %}
+    </select>
+    {% else %}
+    <span class="header-company-name" title="Company">{{ company_display_name }}</span>
+    {% endif %}
+
+    <select class="branch-select" name="branch" aria-label="Branch selection" data-branch-select>
+      {% for branch in branches %}
+      <option value="{{ branch }}"{% if branch == selected_branch %} selected{% endif %}>{{ branch }}</option>
+      {% endfor %}
+    </select>
+
+    <select class="project-select" name="project" aria-label="Project selection (optional)" data-project-select>
+      <option value="">All Projects</option>
+      {% for project in header_projects %}
+      <option value="{{ project.id }}" data-project-code="{{ project.code or project.id }}"{% if project.id == selected_project_id %} selected{% endif %}>{{ project.code or project.id }} — {{ project.name[:56] }}{% if project.name|length > 56 %}…{% endif %}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="pro-dash-header-center header-center">
+    <div class="search-wrapper search-wrapper--global">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <input type="search" id="pro-dash-search" placeholder="Search project, BOQ, DPR, material..." readonly aria-label="Open global search">
+      <button type="button" class="erp-btn erp-btn-primary erp-btn-sm" data-global-search-open>Search</button>
+      <kbd class="header-search-kbd" title="Global search shortcut">Ctrl+K</kbd>
+    </div>
+  </div>
+
+  <div class="pro-dash-header-right header-right">
+    {% include 'partials/header_utility_cluster.html' %}
+  </div>
+</header>

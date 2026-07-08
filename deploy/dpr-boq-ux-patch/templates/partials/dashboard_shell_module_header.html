@@ -1,0 +1,19 @@
+<header class="pro-dash-module-header top-utility-strip">
+  <div class="pro-dash-module-header-left header-left">
+    <button type="button" class="erp-btn erp-btn-ghost erp-btn-sm" data-pro-back data-fallback-url="{{ pro_shell_back_url|default(page_parent_url|default(url_for(primary_dashboard_endpoint|default('dashboard')))) }}" title="Back">
+      <i class="fa-solid fa-arrow-left"></i>
+      <span>Back</span>
+    </button>
+    <a class="erp-btn erp-btn-ghost erp-btn-sm" href="{{ pro_shell_home_url|default(url_for(primary_dashboard_endpoint|default('dashboard'))) }}" title="Home">
+      <i class="fa-solid fa-house"></i>
+      <span>Home</span>
+    </a>
+    {% if page_title is defined and page_title %}
+    <span class="pro-dash-module-title">{{ page_title }}</span>
+    {% endif %}
+  </div>
+
+  <div class="pro-dash-module-header-right header-right">
+    {% include 'partials/header_utility_cluster.html' %}
+  </div>
+</header>

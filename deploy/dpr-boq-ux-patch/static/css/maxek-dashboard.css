@@ -427,13 +427,12 @@
 
 .maxek-layout .top-utility-strip {
   min-height: var(--layout-toolbar-height);
-  height: var(--layout-toolbar-height);
   background-color: var(--maxek-header-bg);
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 var(--layout-toolbar-padding-x);
+  padding: 6px var(--layout-toolbar-padding-x);
   gap: var(--layout-gap);
   flex-shrink: 0;
   overflow: visible;
@@ -469,6 +468,194 @@
   align-items: center;
   gap: 10px;
   overflow: visible;
+  flex-shrink: 0;
+}
+
+.maxek-layout .header-utility-cluster {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow: visible;
+  padding: 4px 4px 4px 0;
+}
+
+.maxek-layout .header-meta-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.maxek-layout .header-icon-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding-top: 4px;
+  padding-right: 2px;
+}
+
+.maxek-layout .header-language-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--layout-control-height);
+  padding: 0 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--layout-control-radius);
+  background: rgba(20, 24, 34, 0.55);
+  color: var(--text-muted);
+  font-size: var(--layout-font-toolbar);
+}
+
+.maxek-layout .header-language-select {
+  border: none;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  min-width: 42px;
+}
+
+.maxek-layout .header-language-select:focus {
+  outline: none;
+}
+
+.maxek-layout .header-btn-label {
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.maxek-layout .header-notif-menu,
+.maxek-layout .maxek-appearance-switcher {
+  position: relative;
+}
+
+.maxek-layout .header-icon-btn {
+  position: relative;
+  overflow: visible;
+}
+
+.maxek-layout .header-notif-panel,
+.maxek-layout .maxek-appearance-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 280px;
+  max-width: min(360px, 92vw);
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--maxek-card-bg, #1a2030);
+  box-shadow: var(--maxek-shadow, 0 12px 40px rgba(0, 0, 0, 0.35));
+  z-index: 200;
+}
+
+.maxek-layout .header-notif-panel[hidden],
+.maxek-layout .maxek-appearance-menu[hidden] {
+  display: none !important;
+}
+
+.maxek-layout .header-notif-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 6px;
+}
+
+.maxek-layout .header-notif-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--maxek-red);
+}
+
+.maxek-layout .header-notif-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.maxek-layout .header-notif-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--text-main);
+  border: 1px solid transparent;
+}
+
+.maxek-layout .header-notif-item:hover {
+  background: var(--maxek-accent-soft, rgba(59, 130, 246, 0.12));
+  border-color: var(--maxek-accent-border, rgba(59, 130, 246, 0.25));
+}
+
+.maxek-layout .header-notif-item.is-unread {
+  font-weight: 700;
+  border-left: 3px solid var(--maxek-red);
+}
+
+.maxek-layout .header-notif-item small {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.maxek-layout .header-notif-empty {
+  margin: 0;
+  padding: 12px 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.maxek-layout .header-notif-view-all {
+  display: block;
+  margin-top: 8px;
+  padding: 8px 10px;
+  text-align: center;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--maxek-accent, #3b82f6);
+  border: 1px solid var(--border-subtle);
+}
+
+.maxek-layout .maxek-appearance-section-label {
+  margin: 8px 8px 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.maxek-layout .maxek-appearance-option {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.maxek-layout .maxek-appearance-option:hover,
+.maxek-layout .maxek-appearance-option.is-selected {
+  background: var(--maxek-accent-soft, rgba(59, 130, 246, 0.12));
+  border-color: var(--maxek-accent-border, rgba(59, 130, 246, 0.25));
 }
 
 .maxek-layout .user-status-cluster {
@@ -477,8 +664,8 @@
   gap: 10px;
   flex-shrink: 0;
   overflow: visible;
-  padding-top: 2px;
-  padding-right: 2px;
+  padding-top: 6px;
+  padding-right: 4px;
 }
 
 .maxek-layout .timestamp,
@@ -2131,7 +2318,7 @@
 
 .maxek-layout .settings-action-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 0.75rem;
   margin-top: 1rem;
 }
@@ -2141,21 +2328,23 @@
   grid-template-columns: 36px minmax(0, 1fr);
   align-items: center;
   gap: 0.75rem;
-  min-height: 64px;
-  padding: 0.85rem 1rem;
-  border-radius: 8px;
+  min-height: 56px;
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
   border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.22));
-  background: var(--bg-display-panel, #1e2533);
-  color: var(--text-main, #e2e8f0);
+  background: var(--bg-display-panel, #1e2533) !important;
+  color: var(--text-main, #e2e8f0) !important;
   text-decoration: none;
-  font-weight: 700;
+  font-weight: 600;
+  font-size: 13px;
+  box-shadow: none;
 }
 
 .maxek-layout .settings-action-card i {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: 8px;
   background: rgba(59, 130, 246, 0.14);
   color: #93c5fd;
@@ -2163,7 +2352,19 @@
 
 .maxek-layout .settings-action-card:hover {
   border-color: rgba(59, 130, 246, 0.42);
-  background: var(--bg-display-panel-top, #242d3d);
+  background: var(--bg-display-panel-top, #242d3d) !important;
+  transform: translateY(-1px);
+}
+
+/* Override legacy solid-red settings shortcut buttons on production */
+.maxek-layout.pro-dashboard-mode a.settings-action-card.erp-btn,
+.maxek-layout.pro-dashboard-mode a.settings-action-card.erp-btn-primary,
+.maxek-layout.pro-dashboard-mode .settings-action-grid .erp-btn-primary {
+  background: var(--bg-display-panel, #1e2533) !important;
+  color: var(--text-main, #e2e8f0) !important;
+  border: 1px solid var(--border-subtle) !important;
+  min-height: 56px;
+  justify-content: flex-start;
 }
 
 .maxek-layout.pro-dashboard-mode[data-pro-theme="business"] .settings-action-card {

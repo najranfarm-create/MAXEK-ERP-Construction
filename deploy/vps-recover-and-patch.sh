@@ -47,11 +47,18 @@ fi
 echo "==> Copying patch files"
 for f in \
   static/css/maxek-dashboard.css \
+  static/css/maxek-pro-dashboard.css \
   static/js/maxek-ui.js \
+  static/js/maxek-pro-dashboard.js \
   static/js/dpr-forms.js \
   templates/base_maxek.html \
   templates/dpr.html \
-  templates/revised_estimate.html
+  templates/revised_estimate.html \
+  templates/partials/header_utility_cluster.html \
+  templates/partials/dashboard_shell_header.html \
+  templates/partials/dashboard_shell_module_header.html \
+  templates/partials/dashboard_shell_sidebar.html \
+  templates/partials/shell_flash_and_title.html
 do
   src="${PATCH}/${f}"
   dst="${LIVE}/${f}"
