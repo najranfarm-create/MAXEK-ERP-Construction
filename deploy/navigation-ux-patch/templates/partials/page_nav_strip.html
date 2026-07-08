@@ -1,0 +1,22 @@
+{% from 'macros/erp_ui.html' import erp_btn_back %}
+{% if page_nav_show|default(false) and request.endpoint not in ['dashboard', 'dashboard_choice_b', 'super_admin_platform_dashboard', 'login'] %}
+<nav class="erp-page-nav-strip" aria-label="Page navigation">
+  {% if page_crud_mode|default('list') in ['view', 'edit', 'create'] and page_list_url %}
+  <a href="{{ page_list_url }}" class="erp-btn erp-btn-ghost erp-btn-sm erp-page-nav-btn" data-page-nav-list>
+    <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back to list
+  </a>
+  {% endif %}
+  {% if page_nav_parent_url and page_crud_mode|default('list') == 'list' %}
+  <a href="{{ page_nav_parent_url }}" class="erp-btn erp-btn-ghost erp-btn-sm erp-page-nav-btn" data-page-nav-parent>
+    <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> {{ page_nav_parent_label|default('Back') }}
+  </a>
+  {% elif page_nav_back_url %}
+  <a href="{{ page_nav_back_url }}" class="erp-btn erp-btn-ghost erp-btn-sm erp-page-nav-btn" data-page-nav-back>
+    <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> {{ page_nav_back_label|default('Back') }}
+  </a>
+  {% endif %}
+  <a href="{{ pro_shell_home_url|default(url_for('dashboard')) }}" class="erp-btn erp-btn-ghost erp-btn-sm erp-page-nav-btn" data-page-nav-home title="Main dashboard">
+    <i class="fa-solid fa-house" aria-hidden="true"></i> Home
+  </a>
+</nav>
+{% endif %}
