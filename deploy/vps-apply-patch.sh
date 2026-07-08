@@ -79,8 +79,10 @@ UI_FILES=(
   templates/partials/dashboard_shell_module_header.html
   templates/partials/dashboard_shell_sidebar.html
   templates/partials/shell_flash_and_title.html
+  templates/partials/attendance_module_tabs.html
   templates/approvals.html
   static/js/approvals-bulk.js
+  static/js/attendance-module-tabs.js
 )
 
 WORKFLOW_FILES=(
@@ -130,6 +132,12 @@ fi
 if [[ -f "${LIVE}/templates/login.html.working-20260707" ]]; then
   cp "${LIVE}/templates/login.html.working-20260707" "${LIVE}/templates/login.html"
   echo "  OK login.html restored from working backup"
+fi
+
+if [[ -x "${SCRIPT_DIR}/inject-attendance-tabs.sh" ]]; then
+  LIVE="${LIVE}" bash "${SCRIPT_DIR}/inject-attendance-tabs.sh"
+elif [[ -f "${PATCH_ROOT}/../inject-attendance-tabs.sh" ]]; then
+  LIVE="${LIVE}" bash "${PATCH_ROOT}/../inject-attendance-tabs.sh"
 fi
 
 echo "==> Restarting maxek-erp.service"

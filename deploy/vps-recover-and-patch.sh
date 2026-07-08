@@ -76,8 +76,10 @@ for f in \
   templates/partials/dashboard_shell_module_header.html \
   templates/partials/dashboard_shell_sidebar.html \
   templates/partials/shell_flash_and_title.html \
+  templates/partials/attendance_module_tabs.html \
   templates/approvals.html \
-  static/js/approvals-bulk.js
+  static/js/approvals-bulk.js \
+  static/js/attendance-module-tabs.js
 do
   src="${PATCH}/${f}"
   dst="${LIVE}/${f}"
@@ -101,6 +103,10 @@ fi
 
 if [[ -f "${LIVE}/templates/login.html.working-20260707" ]]; then
   cp "${LIVE}/templates/login.html.working-20260707" "${LIVE}/templates/login.html"
+fi
+
+if [[ -f "${STAGING}/deploy/inject-attendance-tabs.sh" ]]; then
+  LIVE="${LIVE}" bash "${STAGING}/deploy/inject-attendance-tabs.sh"
 fi
 
 # 5) Restart + diagnose

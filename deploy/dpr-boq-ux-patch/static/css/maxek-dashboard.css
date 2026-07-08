@@ -5273,6 +5273,18 @@
   min-width: 11rem;
 }
 
+.maxek-layout .attendance-module-tabs {
+  margin-bottom: 0.75rem;
+}
+
+.maxek-layout .attendance-module-tab-bar {
+  flex-wrap: wrap;
+}
+
+.maxek-layout [data-attendance-tab-panel][hidden] {
+  display: none !important;
+}
+
 .approval-detail-header {
   display: flex;
   justify-content: space-between;

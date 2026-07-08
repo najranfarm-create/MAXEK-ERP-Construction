@@ -13526,6 +13526,39 @@ def _timesheet_nav_kwargs(subcontractor_nav: bool) -> dict[str, str]:
     return {"nav": "subcontract"} if subcontractor_nav else {}
 
 
+def _attendance_tab_nav_query(subcontractor_nav: bool, attendance_tab: str) -> dict[str, str]:
+    query = _timesheet_nav_kwargs(subcontractor_nav)
+    if attendance_tab and attendance_tab not in ("entry", ""):
+        query["tab"] = attendance_tab
+    if attendance_tab == "monthly":
+        query["mode"] = "monthly"
+    return query
+
+
+def _resolve_attendance_tab(
+    *,
+    subcontractor_nav: bool,
+    view_id,
+    edit_id,
+    view_monthly_id,
+    edit_monthly_id,
+) -> str:
+    requested = (request.args.get("tab") or "").strip().lower()
+    if view_id or edit_id:
+        return "entry"
+    if view_monthly_id or edit_monthly_id:
+        return "monthly"
+    if requested in ("entry", "saved", "monthly"):
+        tab = requested
+    elif request.args.get("mode") == "monthly":
+        tab = "monthly"
+    else:
+        tab = "entry"
+    if subcontractor_nav and tab == "monthly":
+        return "entry"
+    return tab
+
+
 def _handle_daily_timesheet_post(
     db,
     *,
@@ -13624,7 +13657,8 @@ def _handle_daily_timesheet_post(
             _complete_module_save(db, module_id, table, rid, edit_role)
             db.commit()
             flash(f"{entry_label} updated.")
-            return redirect(url_for(endpoint, **nav_q))
+            nav_q = _attendance_tab_nav_query(subcontractor_nav, "saved")
+            return redirect(url_for(endpoint, **nav_q) + "#attendance-saved-list")
         db.execute(
             "INSERT INTO attendance(worker_id, worker_source, project_id, attendance_date, "
             "in_time, out_time, break_hours, total_hours, ot_hours, status, approval_status, "
@@ -13643,7 +13677,8 @@ def _handle_daily_timesheet_post(
         )
         db.commit()
         flash("Saved. Status: Pending Checker.")
-        return redirect(url_for(endpoint, **nav_q) + "#add-attendance")
+        nav_q = _attendance_tab_nav_query(subcontractor_nav, "saved")
+        return redirect(url_for(endpoint, **nav_q) + "#attendance-saved-list")
     except (sqlite3.Error, KeyError, TypeError):
         db.rollback()
         app.logger.exception("%s save failed", entry_label)
@@ -13677,10 +13712,18 @@ def attendance():
     edit_id = request.args.get("edit")
     view_monthly_id = request.args.get("view_monthly", type=int)
     edit_monthly_id = request.args.get("edit_monthly", type=int)
-    attendance_mode = request.args.get("mode", "daily")
     select_trade = request.args.get("select_trade", type=int)
     select_designation = request.args.get("select_designation", type=int)
     subcontractor_nav = request.args.get("nav") == "subcontract"
+    attendance_tab = _resolve_attendance_tab(
+        subcontractor_nav=subcontractor_nav,
+        view_id=view_id,
+        edit_id=edit_id,
+        view_monthly_id=view_monthly_id,
+        edit_monthly_id=edit_monthly_id,
+    )
+    attendance_mode = "monthly" if attendance_tab == "monthly" else "daily"
+    attendance_nav_query = _attendance_tab_nav_query(subcontractor_nav, attendance_tab)
     if subcontractor_nav:
         attendance_mode = "daily"
     view_record = edit_record = view_monthly_record = edit_monthly_record = None
@@ -13705,6 +13748,7 @@ def attendance():
                 return redirect(url_for(endpoint, view=edit_id))
             wf_ctx = {"edit_role": edit_role}
             edit_worker_ctx = get_attendance_edit_worker_context(edit_record)
+            attendance_tab = "entry"
             attendance_mode = "daily"
     elif view_monthly_id:
         view_monthly_record = get_monthly_attendance_record(db, view_monthly_id)
@@ -13715,6 +13759,7 @@ def attendance():
                 monthly_table,
                 view_monthly_record["approval_status"],
             )
+            attendance_tab = "monthly"
             attendance_mode = "monthly"
     elif edit_monthly_id:
         edit_monthly_record = get_monthly_attendance_record(db, edit_monthly_id)
@@ -13727,6 +13772,7 @@ def attendance():
                 flash("This monthly record is locked and cannot be edited.")
                 return redirect(url_for(endpoint, view_monthly=edit_monthly_id))
             monthly_wf_ctx = {"edit_role": edit_role}
+            attendance_tab = "monthly"
             attendance_mode = "monthly"
     if request.method == "POST":
         form_action = request.form.get("form_action", "save").strip()
@@ -13738,7 +13784,7 @@ def attendance():
                         monthly_module_id, monthly_table, endpoint
                     )
                     if ctx[0] == "redirect":
-                        return redirect(ctx[1] + "?mode=monthly#monthly-attendance")
+                        return redirect(ctx[1] + "?tab=monthly#monthly-attendance")
                     rid, edit_role = ctx
                     save_monthly_attendance_from_form(
                         db,
@@ -13751,7 +13797,7 @@ def attendance():
                     )
                     db.commit()
                     flash("Monthly attendance updated.")
-                    return redirect(url_for(endpoint, mode="monthly") + "#monthly-attendance")
+                    return redirect(url_for(endpoint, tab="monthly") + "#monthly-attendance")
                 new_id = save_monthly_attendance_from_form(
                     db,
                     request.form,
@@ -13763,10 +13809,10 @@ def attendance():
                 )
                 db.commit()
                 flash("Monthly attendance saved. Status: Pending Checker.")
-                return redirect(url_for(endpoint, mode="monthly") + "#monthly-attendance")
+                return redirect(url_for(endpoint, tab="monthly") + "#monthly-attendance")
             except ValueError as exc:
                 flash(str(exc))
-                return redirect(url_for(endpoint, mode="monthly") + "#monthly-attendance")
+                return redirect(url_for(endpoint, tab="monthly") + "#monthly-attendance")
             except (sqlite3.Error, KeyError, TypeError):
                 db.rollback()
                 app.logger.exception("Monthly attendance save failed")
@@ -13774,7 +13820,7 @@ def attendance():
                     "Unable to save monthly attendance. "
                     "If this persists after deploy, check server logs (journalctl -u maxek-erp)."
                 )
-                return redirect(url_for(endpoint, mode="monthly") + "#monthly-attendance")
+                return redirect(url_for(endpoint, tab="monthly") + "#monthly-attendance")
 
         return _handle_daily_timesheet_post(
             db,
@@ -13800,6 +13846,8 @@ def attendance():
         select_trade=select_trade,
         select_designation=select_designation,
         attendance_mode=attendance_mode,
+        attendance_tab=attendance_tab,
+        attendance_nav_query=attendance_nav_query,
         subcontractor_nav=subcontractor_nav,
         sub_attendance_statuses=SUBCONTRACTOR_ATTENDANCE_STATUSES,
         view_record=view_record,
