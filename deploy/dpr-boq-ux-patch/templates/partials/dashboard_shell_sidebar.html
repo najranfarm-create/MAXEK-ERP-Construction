@@ -17,10 +17,11 @@
     </div>
   </div>
 
-  <nav class="pro-dash-sidebar-nav" aria-label="Dashboard modules">
+  {# Department command-centre sidebar only — no Platform / Customers / Ops drill-down here #}
+  <nav class="pro-dash-sidebar-nav" aria-label="Dashboard shortcuts">
     {% for item in dashboard_shell_command_centre_items|default([]) %}
     {% set item_active = request.endpoint in (item.get('active_endpoints') or [item.endpoint]) %}
-  <a
+    <a
       class="pro-dash-nav-link{% if item_active %} is-active{% endif %}"
       href="{{ safe_url_for(item.endpoint, **(item.get('query') or {})) }}{% if item.get('anchor') %}#{{ item.anchor }}{% endif %}"
     >
@@ -29,24 +30,15 @@
     </a>
     {% endfor %}
 
-    {% for group in dashboard_shell_nav_groups|default([]) %}
-    <div class="pro-dash-nav-group">
-      <div class="pro-dash-nav-group-label">
-        <i class="fa-solid {{ group.icon }}"></i>
-        <span>{{ group.label }}</span>
-      </div>
-      {% for item in group.get('items', []) %}
-      {% set item_active = request.endpoint in (item.get('active_endpoints') or [item.endpoint]) %}
-      <a
-        class="pro-dash-nav-link pro-dash-nav-link--nested{% if item_active %} is-active{% endif %}"
-        href="{{ safe_url_for(item.endpoint, **(item.get('query') or {})) }}"
-      >
-        <i class="fa-solid {{ item.icon }}"></i>
-        <span>{{ item.label }}</span>
-      </a>
-      {% endfor %}
-    </div>
-    {% endfor %}
+    {% if is_super_admin_user|default(false) or is_platform_super_admin|default(false) %}
+    <a
+      class="pro-dash-nav-link{% if request.endpoint == 'super_admin_platform_dashboard' %} is-active{% endif %}"
+      href="{{ url_for('super_admin_platform_dashboard') }}"
+    >
+      <i class="fa-solid fa-gauge-high"></i>
+      <span>Platform Centre</span>
+    </a>
+    {% endif %}
   </nav>
 
   {% if dashboard_shell_settings %}

@@ -1590,71 +1590,68 @@ document.addEventListener('DOMContentLoaded', function () {
     var root = document.querySelector('[data-appearance-switcher]');
     if (!root) return;
     var menuApi = initDropdownMenu(root, '[data-appearance-toggle]', '.maxek-appearance-menu');
-    var layoutHost = document.querySelector('.pro-dash-dashboard-host');
-    var layoutKey = 'maxek-dashboard-layout-theme';
+    var THEME_STORAGE_KEY = 'maxek-ui-theme';
+    var DEFAULT_THEME = 'command-dark';
 
-    function markSelected(attr, value) {
-      root.querySelectorAll('.maxek-appearance-option[' + attr + ']').forEach(function (btn) {
-        var match = btn.getAttribute(attr) === value;
+    function markPaletteSelected(themeId) {
+      root.querySelectorAll('.maxek-appearance-option[data-theme-id]').forEach(function (btn) {
+        var match = btn.getAttribute('data-theme-id') === themeId;
         btn.classList.toggle('is-selected', match);
         btn.setAttribute('aria-checked', match ? 'true' : 'false');
       });
     }
 
-    function applyDashboardLayout(themeId) {
-      if (!layoutHost) return;
-      layoutHost.setAttribute('data-dashboard-theme', themeId || 'default');
-      try {
-        localStorage.setItem(layoutKey, themeId || 'default');
-      } catch (err) {
-        /* ignore */
-      }
-      markSelected('data-dashboard-theme', themeId || 'default');
+    function persistPaletteToServer(theme) {
       fetch('/api/erp/dashboard-preferences', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ dashboard_layout_theme: themeId || 'default' }),
+        body: JSON.stringify({ ui_theme: theme }),
       }).catch(function () {});
     }
 
-    if (layoutHost) {
-      var initialLayout = 'default';
+    function resetDashboardColours() {
       try {
-        initialLayout = localStorage.getItem(layoutKey) || layoutHost.getAttribute('data-dashboard-theme') || 'default';
+        localStorage.removeItem(THEME_STORAGE_KEY);
+        localStorage.removeItem('maxek_pro_theme');
+        localStorage.removeItem('maxek-dashboard-layout-theme');
       } catch (err) {
-        initialLayout = layoutHost.getAttribute('data-dashboard-theme') || 'default';
+        /* ignore */
       }
-      applyDashboardLayout(initialLayout);
+      if (window.MaxekTheme) {
+        window.MaxekTheme.apply(DEFAULT_THEME);
+        persistPaletteToServer(DEFAULT_THEME);
+        markPaletteSelected(DEFAULT_THEME);
+      }
+      if (window.maxekProTheme) {
+        window.maxekProTheme.apply('midnight', { persist: false });
+      }
+      var layoutHost = document.querySelector('.pro-dash-dashboard-host');
+      if (layoutHost) {
+        layoutHost.setAttribute('data-dashboard-theme', 'default');
+      }
+      menuApi?.closeMenu();
+    }
+
+    if (window.MaxekTheme) {
+      markPaletteSelected(window.MaxekTheme.get());
     }
 
     root.querySelectorAll('.maxek-appearance-option').forEach(function (button) {
       button.addEventListener('click', function () {
-        var layoutTheme = button.getAttribute('data-dashboard-theme');
-        var proTheme = button.getAttribute('data-pro-theme');
+        if (button.hasAttribute('data-theme-reset')) {
+          resetDashboardColours();
+          return;
+        }
         var paletteTheme = button.getAttribute('data-theme-id');
-
-        if (layoutTheme) {
-          applyDashboardLayout(layoutTheme);
-        }
-        if (proTheme && window.maxekProTheme) {
-          window.maxekProTheme.apply(proTheme);
-          markSelected('data-pro-theme', proTheme);
-        }
         if (paletteTheme && window.MaxekTheme) {
-          window.MaxekTheme.apply(paletteTheme);
-          markSelected('data-theme-id', paletteTheme);
+          var next = window.MaxekTheme.apply(paletteTheme);
+          persistPaletteToServer(next);
+          markPaletteSelected(next);
         }
         menuApi?.closeMenu();
       });
     });
-
-    if (window.maxekProTheme) {
-      markSelected('data-pro-theme', window.maxekProTheme.get());
-    }
-    if (window.MaxekTheme) {
-      markSelected('data-theme-id', window.MaxekTheme.get());
-    }
   }
 
   initLanguageSwitcher();

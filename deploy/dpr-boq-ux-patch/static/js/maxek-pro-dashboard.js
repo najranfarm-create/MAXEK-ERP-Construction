@@ -3,7 +3,7 @@
 
   var PRO_THEME_STORAGE_KEY = 'maxek_pro_theme';
   var PRO_THEMES = ['midnight', 'business', 'erp-classic'];
-  var DEFAULT_PRO_THEME = 'business';
+  var DEFAULT_PRO_THEME = 'midnight';
 
   function normalizeProTheme(theme) {
     return PRO_THEMES.indexOf(theme) >= 0 ? theme : DEFAULT_PRO_THEME;
@@ -22,9 +22,10 @@
     if (target) {
       target.setAttribute('data-pro-theme', normalized);
     }
+    /* Shell theme is fixed to midnight — palette comes from data-theme on <html> */
     if (opts.persist !== false) {
       try {
-        localStorage.setItem(PRO_THEME_STORAGE_KEY, normalized);
+        localStorage.removeItem(PRO_THEME_STORAGE_KEY);
       } catch (err) {
         /* ignore */
       }
@@ -42,21 +43,16 @@
     if (!target) {
       return;
     }
-    var initial = DEFAULT_PRO_THEME;
     try {
-      var stored = localStorage.getItem(PRO_THEME_STORAGE_KEY);
-      if (stored) {
-        initial = normalizeProTheme(stored);
-      } else {
-        initial = normalizeProTheme(
-          target.getAttribute('data-pro-theme') ||
-            document.documentElement.getAttribute('data-pro-theme-init') ||
-            DEFAULT_PRO_THEME
-        );
-      }
+      localStorage.removeItem(PRO_THEME_STORAGE_KEY);
     } catch (err) {
-      initial = normalizeProTheme(target.getAttribute('data-pro-theme') || DEFAULT_PRO_THEME);
+      /* ignore */
     }
+    var initial = normalizeProTheme(
+      target.getAttribute('data-pro-theme') ||
+        document.documentElement.getAttribute('data-pro-theme-init') ||
+        DEFAULT_PRO_THEME
+    );
     applyProTheme(initial, { persist: false });
   }
 

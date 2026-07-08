@@ -63,23 +63,27 @@
   </div>
 
   <div class="maxek-appearance-switcher" data-appearance-switcher>
-    <button type="button" class="header-icon-btn" data-appearance-toggle title="Dashboard design &amp; theme" aria-expanded="false" aria-haspopup="true">
+    <button type="button" class="header-icon-btn" data-appearance-toggle title="Dashboard colour theme" aria-expanded="false" aria-haspopup="true">
       <i class="fa-solid fa-palette"></i>
       <span class="header-btn-label">Design</span>
     </button>
-    <div class="maxek-appearance-menu" hidden role="menu" aria-label="Appearance options">
-      <p class="maxek-appearance-section-label">Dashboard layout</p>
-      <button type="button" class="maxek-appearance-option" data-dashboard-theme="default" role="menuitem">Standard</button>
-      <button type="button" class="maxek-appearance-option" data-dashboard-theme="executive" role="menuitem">Executive</button>
-      <button type="button" class="maxek-appearance-option" data-dashboard-theme="compact" role="menuitem">Compact</button>
-      <p class="maxek-appearance-section-label">Shell theme</p>
-      <button type="button" class="maxek-appearance-option" data-pro-theme="midnight" role="menuitem">Midnight</button>
-      <button type="button" class="maxek-appearance-option" data-pro-theme="business" role="menuitem">Business</button>
-      <button type="button" class="maxek-appearance-option" data-pro-theme="erp-classic" role="menuitem">ERP Classic</button>
-      <p class="maxek-appearance-section-label">Colour palette</p>
-      <button type="button" class="maxek-appearance-option" data-theme-id="command-dark" role="menuitem">Command Dark</button>
-      <button type="button" class="maxek-appearance-option" data-theme-id="pro-light" role="menuitem">Pro Light</button>
-      <button type="button" class="maxek-appearance-option" data-theme-id="ultra-color" role="menuitem">Ultra Color</button>
+    <div class="maxek-appearance-menu" hidden role="menu" aria-label="Dashboard colour theme">
+      <p class="maxek-appearance-section-label">Dashboard colour (applies everywhere)</p>
+      <button type="button" class="maxek-appearance-option" data-theme-id="command-dark" role="menuitem">
+        <span class="maxek-theme-swatch maxek-theme-swatch--command-dark" aria-hidden="true"></span>
+        Command Dark
+      </button>
+      <button type="button" class="maxek-appearance-option" data-theme-id="pro-light" role="menuitem">
+        <span class="maxek-theme-swatch maxek-theme-swatch--pro-light" aria-hidden="true"></span>
+        Pro Light
+      </button>
+      <button type="button" class="maxek-appearance-option" data-theme-id="ultra-color" role="menuitem">
+        <span class="maxek-theme-swatch maxek-theme-swatch--ultra-color" aria-hidden="true"></span>
+        Ultra Color
+      </button>
+      <button type="button" class="maxek-appearance-option maxek-appearance-reset" data-theme-reset role="menuitem">
+        Restore default colours
+      </button>
     </div>
   </div>
 
