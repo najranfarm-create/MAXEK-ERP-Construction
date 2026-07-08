@@ -1,0 +1,7 @@
+{# Standard project name display: code on line 1, name up to 3 lines #}
+{% macro project_name_cell(code, name, lines=3) %}
+<div class="erp-project-name-cell">
+  <span class="erp-project-code">{{ code or '—' }}</span>
+  <span class="erp-project-name{% if lines == 2 %} erp-project-name--2{% endif %}" title="{{ name or '' }}">{{ name or '—' }}</span>
+</div>
+{% endmacro %}

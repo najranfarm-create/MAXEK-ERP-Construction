@@ -40,10 +40,12 @@ FILES=(
   project_completion_service.py
   boq_management_service.py
   boq_management_routes.py
+  templates/base_maxek.html
   templates/dpr.html
   templates/revised_estimate.html
   templates/toc_extension.html
   templates/project_completion.html
+  templates/partials/project_name_cell.html
   static/css/maxek-dashboard.css
   static/js/revised-estimate.js
   static/js/toc-extension.js

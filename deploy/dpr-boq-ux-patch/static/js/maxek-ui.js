@@ -1014,10 +1014,76 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   projectSelect?.addEventListener('change', function () {
+    const opt = projectSelect.options[projectSelect.selectedIndex];
+    projectSelect.title = opt?.getAttribute('title') || opt?.textContent || 'All projects';
     postWorkContext({
       project_id: projectSelect.value || null,
     });
   });
+
+  if (projectSelect && projectSelect.selectedIndex >= 0) {
+    const selectedOpt = projectSelect.options[projectSelect.selectedIndex];
+    projectSelect.title = selectedOpt?.getAttribute('title') || selectedOpt?.textContent || 'All projects';
+  }
+
+  function escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function buildProjectNameCell(code, name, lines) {
+    const clampClass = lines === 2 ? ' erp-project-name--2' : '';
+    return (
+      '<div class="erp-project-name-cell">'
+      + '<span class="erp-project-code">' + escapeHtml(code || '—') + '</span>'
+      + '<span class="erp-project-name' + clampClass + '" title="' + escapeHtml(name || '') + '">'
+      + escapeHtml(name || '—')
+      + '</span></div>'
+    );
+  }
+
+  function enhanceProjectListTables() {
+    const scopes = document.querySelectorAll('#project-list, [data-module-anchor="project-list"], .projects-module-list');
+    scopes.forEach(function (scope) {
+      const table = scope.tagName === 'TABLE' ? scope : scope.querySelector('table.erp-table, table');
+      if (!table || table.getAttribute('data-project-names-enhanced') === '1') return;
+
+      const headers = Array.from(table.querySelectorAll('thead th'));
+      let nameIdx = headers.findIndex(function (th) {
+        const label = (th.textContent || '').trim().toLowerCase();
+        return label === 'project name' || label === 'project title' || label === 'name';
+      });
+      let codeIdx = headers.findIndex(function (th) {
+        const label = (th.textContent || '').trim().toLowerCase();
+        return label === 'project number' || label === 'project code' || label === 'code';
+      });
+
+      if (nameIdx < 0) return;
+
+      table.querySelectorAll('tbody tr').forEach(function (row) {
+        const nameCell = row.children[nameIdx];
+        if (!nameCell || nameCell.querySelector('.erp-project-name-cell')) return;
+
+        const codeCell = codeIdx >= 0 ? row.children[codeIdx] : null;
+        const code = (codeCell?.textContent || '').trim();
+        const name = (nameCell.textContent || '').trim();
+        if (!name) return;
+
+        nameCell.classList.add('erp-col-project-name', 'is-project-name');
+        nameCell.innerHTML = buildProjectNameCell(code, name, 3);
+        if (codeCell && codeIdx !== nameIdx) {
+          codeCell.classList.add('erp-col-project-code');
+        }
+      });
+
+      table.setAttribute('data-project-names-enhanced', '1');
+    });
+  }
+
+  enhanceProjectListTables();
 
   function refreshLiveBadges() {
     fetch('/api/erp/badges', { credentials: 'same-origin' })

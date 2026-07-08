@@ -468,6 +468,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  overflow: visible;
 }
 
 .maxek-layout .user-status-cluster {
@@ -7022,7 +7023,17 @@
   border-radius: var(--layout-control-radius);
   color: #fff;
   padding: 0 8px;
+}
+
+.maxek-shell-layout .company-select,
+.maxek-shell-layout .branch-select {
   max-width: 130px;
+}
+
+.maxek-shell-layout .project-select {
+  min-width: 160px;
+  max-width: min(240px, 28vw);
+  text-overflow: ellipsis;
 }
 
 .maxek-shell-layout .search-wrapper--global {
@@ -8352,4 +8363,55 @@
 [data-theme="pro-light"] .maxek-layout .dpr-selected-chip strong,
 .maxek-layout.pro-dashboard-mode[data-pro-theme="business"] .dpr-selected-chip strong {
   color: #1d4ed8;
+}
+
+/* Project name — standard 2–3 line display in lists & tables */
+.maxek-layout .erp-project-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  max-width: 22rem;
+}
+
+.maxek-layout .erp-project-code {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--maxek-red, #e30613);
+  line-height: 1.2;
+}
+
+.maxek-layout .erp-project-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 0.88rem;
+  line-height: 1.38;
+  color: var(--text-main, #e2e8f0);
+  word-break: break-word;
+}
+
+.maxek-layout .erp-project-name--2 {
+  -webkit-line-clamp: 2;
+}
+
+.maxek-layout #project-list .erp-table th,
+.maxek-layout [data-module-anchor="project-list"] .erp-table th {
+  white-space: nowrap;
+}
+
+.maxek-layout #project-list .erp-table td.erp-col-project-name,
+.maxek-layout #project-list .erp-table td.is-project-name {
+  min-width: 12rem;
+  max-width: 22rem;
+  vertical-align: top;
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+}
+
+.maxek-layout .dash-project-select .dash-select {
+  min-width: 200px;
+  max-width: 320px;
 }

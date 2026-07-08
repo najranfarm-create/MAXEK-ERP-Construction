@@ -8828,12 +8828,18 @@ def inject_maxek_layout():
     if not header_projects:
         try:
             project_sql, project_params = _append_tenant_filter(
-                "SELECT id, project_name FROM projects WHERE status != 'Closed' ORDER BY project_name LIMIT 50",
+                "SELECT id, project_code, project_name FROM projects "
+                "WHERE status != 'Closed' ORDER BY project_name LIMIT 50",
                 table_alias="",
             )
             project_rows = db.execute(project_sql, project_params).fetchall()
             header_projects = [
-                {"id": row["id"], "name": row["project_name"]} for row in project_rows
+                {
+                    "id": row["id"],
+                    "name": row["project_name"],
+                    "code": row["project_code"] or "",
+                }
+                for row in project_rows
             ]
         except sqlite3.OperationalError:
             header_projects = []
