@@ -81,6 +81,39 @@
       }
     });
 
+    root.addEventListener("click", function (event) {
+      const rejectBtn = event.target.closest("[data-approval-reject]");
+      if (!rejectBtn) {
+        return;
+      }
+      const approvalId = rejectBtn.getAttribute("data-approval-id");
+      if (!approvalId) {
+        return;
+      }
+      const rejectRole = rejectBtn.getAttribute("data-approval-role") || role;
+      const comments = window.prompt("Rejection reason (required):", "");
+      if (comments === null) {
+        return;
+      }
+      if (!comments.trim()) {
+        window.alert("Rejection reason is required.");
+        return;
+      }
+      rejectBtn.disabled = true;
+      postApproval(actionUrl, {
+        approval_id: approvalId,
+        action: "reject",
+        role: rejectRole,
+        comments: comments.trim(),
+      })
+        .then(function () {
+          window.location.reload();
+        })
+        .catch(function () {
+          window.location.reload();
+        });
+    });
+
     if (submitBtn) {
       submitBtn.addEventListener("click", function () {
         const ids = selectedChecks().map((el) => el.value).filter(Boolean);

@@ -1,9 +1,8 @@
 {% extends 'base_maxek.html' %}
-{% from 'macros/erp_ui.html' import checker_row_actions, approver_row_actions %}
 {% set page_title = 'Approvals' %}
 {% set breadcrumbs = '<a href="' ~ url_for('dashboard') ~ '">Home</a> &gt; Approvals' %}
 {% block head_extra %}
-<script src="{{ url_for('static', filename='js/approvals-bulk.js') }}?v=20260708-approval-fix" defer></script>
+<script src="{{ url_for('static', filename='js/approvals-bulk.js') }}?v=20260708-checker-buttons" defer></script>
 {% endblock %}
 {% block content %}
 {% set bulk_action = 'approve' if role in ('checker', 'approver') else '' %}
@@ -75,8 +74,6 @@
         <tbody>
           {% for item in items %}
           {% set approval_pk = item.approval_id or item.id %}
-          {% set mod_ep = module_routes.get(item.module_id, item.module_id or 'dashboard') %}
-          {% set rec_id = item.record_id or 0 %}
           {% set appr_status = item.approval_status or item.status_label or item.display_status or 'Pending Checker' %}
           <tr data-approval-row data-approval-id="{{ approval_pk }}">
             {% if tab == 'pending' and bulk_action %}
@@ -100,11 +97,21 @@
               <a href="{{ url_for('approval_detail', approval_id=approval_pk, role=role) }}" class="erp-btn erp-btn-ghost erp-btn-sm">Open</a>
               {% endif %}
               {% if tab == 'pending' and item.is_pending and approval_pk %}
-                {% if role == 'checker' %}
-                  {{ checker_row_actions(approval_pk, mod_ep, rec_id, appr_status) }}
-                {% elif role == 'approver' %}
-                  {{ approver_row_actions(approval_pk, mod_ep, rec_id, appr_status) }}
-                {% endif %}
+                <form method="post" action="{{ url_for('approval_action') }}" class="workflow-inline-form">
+                  <input type="hidden" name="approval_id" value="{{ approval_pk }}">
+                  <input type="hidden" name="action" value="approve">
+                  <input type="hidden" name="role" value="{{ role }}">
+                  <button type="submit" class="erp-btn erp-btn-primary erp-btn-sm">
+                    {% if role == 'checker' %}Verify{% else %}Approve{% endif %}
+                  </button>
+                </form>
+                <button
+                  type="button"
+                  class="erp-btn erp-btn-danger erp-btn-sm"
+                  data-approval-reject
+                  data-approval-id="{{ approval_pk }}"
+                  data-approval-role="{{ role }}"
+                >Reject</button>
               {% endif %}
             </td>
           </tr>

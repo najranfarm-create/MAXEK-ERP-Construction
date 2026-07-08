@@ -5268,6 +5268,11 @@
   white-space: nowrap;
 }
 
+.approvals-compact-table td.workflow-row-actions {
+  white-space: normal;
+  min-width: 11rem;
+}
+
 .approval-detail-header {
   display: flex;
   justify-content: space-between;
