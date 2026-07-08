@@ -7129,11 +7129,11 @@ HR_NAV_ACTIVE = [
     "employee_profile",
     "staff_bonus",
     "attendance",
+    "timesheet",
     "employee_timesheets",
     "employee_timesheets_form",
     "employee_timesheets_submit",
     "employee_timesheets_print",
-    "timesheet",
     "leave_request",
     "payroll",
     "payroll_payments",
@@ -7166,7 +7166,6 @@ SUBCONTRACT_NAV_ACTIVE = [
     "workers",
     "subcontractors",
     "attendance",
-    "timesheet",
     "sub_billing_register",
     "sub_billing_form",
     "sub_billing_print",
@@ -7607,13 +7606,7 @@ NAV_GROUPS = [
                 "endpoint": "attendance",
                 "label": "Attendance",
                 "icon": "fa-calendar-check",
-                "active_endpoints": ["attendance"],
-            },
-            {
-                "endpoint": "timesheet",
-                "label": "Daily Timesheet",
-                "icon": "fa-clock",
-                "active_endpoints": ["timesheet"],
+                "active_endpoints": ["attendance", "timesheet"],
             },
             {
                 "endpoint": "employee_timesheets",
@@ -7701,14 +7694,7 @@ NAV_GROUPS = [
                 "icon": "fa-calendar-check",
                 "anchor": "add-attendance",
                 "query": {"nav": "subcontract"},
-                "active_endpoints": ["attendance"],
-            },
-            {
-                "endpoint": "timesheet",
-                "label": "Worker Timesheet",
-                "icon": "fa-clock",
-                "query": {"nav": "subcontract"},
-                "active_endpoints": ["timesheet"],
+                "active_endpoints": ["attendance", "timesheet"],
             },
             {
                 "endpoint": "sub_billing_register",
@@ -8283,8 +8269,8 @@ NAV_GROUPS = [
             },
             {
                 "endpoint": "approvals",
-                "label": "Timesheet Approvals",
-                "icon": "fa-clock",
+                "label": "Attendance Approvals",
+                "icon": "fa-calendar-check",
                 "query": {"module": "timesheet"},
                 "active_endpoints": ["approvals", "approval_detail", "approval_action"],
             },
@@ -9526,8 +9512,8 @@ def get_department_portals():
             "summary_title": "Workforce Summary",
             "menu": [
                 {"endpoint": "staff", "label": "Employee Master", "icon": "fa-user-tie", "active_endpoints": ["staff", "employee_profile"]},
-                {"endpoint": "attendance", "label": "Attendance", "icon": "fa-calendar-check", "active_endpoints": ["attendance"]},
-                {"endpoint": "timesheet", "label": "Timesheet", "icon": "fa-clock", "active_endpoints": ["timesheet", "employee_timesheets"]},
+                {"endpoint": "attendance", "label": "Attendance", "icon": "fa-calendar-check", "active_endpoints": ["attendance", "timesheet"]},
+                {"endpoint": "employee_timesheets", "label": "Monthly Timesheet", "icon": "fa-table", "active_endpoints": ["employee_timesheets", "employee_timesheets_form", "employee_timesheets_submit", "employee_timesheets_print"]},
                 {"endpoint": "payroll", "label": "Payroll", "icon": "fa-money-check-dollar", "active_endpoints": ["payroll", "payroll_payments"]},
                 {"endpoint": "salary", "label": "Salary Payment", "icon": "fa-wallet", "active_endpoints": ["salary"]},
                 {"endpoint": "leave_request", "label": "Leave Management", "icon": "fa-plane-departure", "active_endpoints": ["leave_request"]},
@@ -10715,6 +10701,7 @@ ENDPOINT_WORKFLOW_MODULE = {
     "store_receipt": "store_receipt",
     "sub_billing_register": "subcontractor_billing",
     "subcontract_payments": "subcontract_payments",
+    "attendance": "daily_timesheet",
     "timesheet": "daily_timesheet",
     "employee_timesheets": "employee_timesheet",
 }
@@ -11880,9 +11867,8 @@ def workforce_dashboard():
     ]
     modules = [
         {"endpoint": "staff", "label": "Employees", "icon": "fa-user-tie", "description": "Employee master, profiles & bonus"},
-        {"endpoint": "attendance", "label": "Attendance", "icon": "fa-calendar-check", "description": "Daily staff attendance register"},
+        {"endpoint": "attendance", "label": "Attendance", "icon": "fa-calendar-check", "description": "Daily staff & worker attendance register"},
         {"endpoint": "employee_timesheets", "label": "Monthly Timesheets", "icon": "fa-table", "description": "Monthly employee timesheet submission"},
-        {"endpoint": "timesheet", "label": "Daily Timesheet Register", "icon": "fa-clock", "description": "Daily labour timesheet entries"},
         {"endpoint": "leave_request", "label": "Leave Management", "icon": "fa-plane-departure", "description": "Leave applications & approvals"},
         {"endpoint": "payroll", "label": "Payroll", "icon": "fa-money-check-dollar", "description": "Payroll processing & slips"},
         {"endpoint": "payroll_revisions", "label": "Rate Revisions", "icon": "fa-chart-line", "description": "Salary rate revision history"},
@@ -12387,7 +12373,6 @@ def subcontract_dashboard():
         {"endpoint": "subcontractors", "label": "Subcontractor Creation", "icon": "fa-user-plus", "description": "Register new subcontractor firms"},
         {"endpoint": "subcontractors", "label": "Subcontractor List", "icon": "fa-list", "description": "Browse all active subcontractors"},
         {"endpoint": "attendance", "label": "Worker Attendance", "icon": "fa-calendar-day", "description": "Daily worker attendance on site"},
-        {"endpoint": "timesheet", "label": "Worker Timesheet", "icon": "fa-stopwatch", "description": "Worker hours & productivity"},
         {"endpoint": "sub_billing_register", "label": "Subcontract Bills", "icon": "fa-file-invoice-dollar", "description": "RA bills & measurement sheets"},
         {"endpoint": "subcontract_payments", "label": "Subcontract Payments", "icon": "fa-hand-holding-dollar", "description": "Payment vouchers to subcontractors"},
     ]
@@ -13549,8 +13534,8 @@ def _handle_daily_timesheet_post(
     table: str,
     subcontractor_nav: bool,
 ):
-    """Handle POST actions for daily timesheet / attendance entry forms."""
-    entry_label = "Timesheet" if endpoint == "timesheet" else "Attendance"
+    """Handle POST actions for daily attendance entry forms."""
+    entry_label = "Attendance"
     form_action = request.form.get("form_action", "save").strip()
     nav_q = _timesheet_nav_kwargs(subcontractor_nav)
 
@@ -22416,77 +22401,8 @@ def inventory():
 @app.route("/timesheet", methods=["GET", "POST"])
 @login_required
 def timesheet():
-    module_id, table, endpoint = "daily_timesheet", "attendance", "timesheet"
-    db = get_db()
-    ensure_attendance_master_schema(db)
-    db.commit()
-    subcontractor_nav = request.args.get("nav") == "subcontract"
-    attendance_workers = get_attendance_form_worker_data()
-    projects = get_attendance_project_options()
-    trades = get_active_trades()
-    designations = get_active_designations()
-    select_trade = request.args.get("select_trade", type=int)
-    select_designation = request.args.get("select_designation", type=int)
-    view_id = request.args.get("view")
-    edit_id = request.args.get("edit")
-    view_record = edit_record = None
-    edit_worker_ctx = {"staff_type": "", "subcontractor_id": ""}
-    wf_ctx = {}
-    if view_id:
-        view_record = query_db(_DAILY_ATTENDANCE_RECORD_SQL, (view_id,), one=True)
-        if view_record:
-            wf_ctx = _workflow_view_context(
-                module_id, view_record["id"], table, view_record["approval_status"]
-            )
-    elif edit_id:
-        edit_record = query_db(_DAILY_ATTENDANCE_RECORD_SQL, (edit_id,), one=True)
-        if edit_record:
-            edit_role = get_edit_role_for_user(
-                get_db(), session.get("user_id"), module_id,
-                edit_record["approval_status"], is_admin_user(),
-            )
-            if not edit_role:
-                flash("This record is locked and cannot be edited.")
-                nav_q = _timesheet_nav_kwargs(subcontractor_nav)
-                return redirect(url_for(endpoint, view=edit_id, **nav_q))
-            wf_ctx = {"edit_role": edit_role}
-            edit_worker_ctx = get_attendance_edit_worker_context(edit_record)
-    if request.method == "POST":
-        return _handle_daily_timesheet_post(
-            db,
-            endpoint=endpoint,
-            module_id=module_id,
-            table=table,
-            subcontractor_nav=subcontractor_nav,
-        )
-    rows = list_daily_attendance_records(
-        db, subcontractor_only=subcontractor_nav
-    )
-    return render_template(
-        "timesheet.html",
-        rows=rows,
-        subcontractor_nav=subcontractor_nav,
-        company_staff=attendance_workers["company_staff"],
-        subcontractors=attendance_workers["subcontractors"],
-        subcontractor_workers=attendance_workers["subcontractor_workers"],
-        projects=projects,
-        trades=trades,
-        designations=designations,
-        select_trade=select_trade,
-        select_designation=select_designation,
-        sub_attendance_statuses=SUBCONTRACTOR_ATTENDANCE_STATUSES,
-        view_record=view_record,
-        edit_record=edit_record,
-        edit_staff_type=edit_worker_ctx["staff_type"],
-        edit_subcontractor_id=edit_worker_ctx["subcontractor_id"],
-        history=wf_ctx.get("history"),
-        edit_role=wf_ctx.get("edit_role"),
-        can_reopen=wf_ctx.get("can_reopen", False),
-        approval_id=wf_ctx.get("approval_id"),
-        form_endpoint="timesheet",
-        form_mode="timesheet",
-        **_daily_timesheet_field_defaults(),
-    )
+    """Legacy URL — daily labour entries live under Attendance."""
+    return attendance()
 
 
 @app.route("/wbs")

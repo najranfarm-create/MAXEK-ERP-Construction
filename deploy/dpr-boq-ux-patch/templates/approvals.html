@@ -2,7 +2,7 @@
 {% set page_title = 'Approvals' %}
 {% set breadcrumbs = '<a href="' ~ url_for('dashboard') ~ '">Home</a> &gt; Approvals' %}
 {% block head_extra %}
-<script src="{{ url_for('static', filename='js/approvals-bulk.js') }}?v=20260708-checker-buttons" defer></script>
+<script src="{{ url_for('static', filename='js/approvals-bulk.js') }}?v=20260708-bulk-form" defer></script>
 {% endblock %}
 {% block content %}
 {% set bulk_action = 'approve' if role in ('checker', 'approver') else '' %}
@@ -32,7 +32,7 @@
     <a href="{{ url_for('approvals', role=role, tab=tab) }}" class="erp-tab{% if not module_filter %} active{% endif %}">All modules</a>
     <a href="{{ url_for('approvals', role=role, tab=tab, module='purchase') }}" class="erp-tab{% if module_filter == 'purchase' %} active{% endif %}">Purchase</a>
     <a href="{{ url_for('approvals', role=role, tab=tab, module='store') }}" class="erp-tab{% if module_filter == 'store' %} active{% endif %}">Store</a>
-    <a href="{{ url_for('approvals', role=role, tab=tab, module='timesheet') }}" class="erp-tab{% if module_filter == 'timesheet' %} active{% endif %}">Timesheet</a>
+    <a href="{{ url_for('approvals', role=role, tab=tab, module='timesheet') }}" class="erp-tab{% if module_filter == 'timesheet' %} active{% endif %}">Attendance</a>
     <a href="{{ url_for('approvals', role=role, tab=tab, module='payroll') }}" class="erp-tab{% if module_filter == 'payroll' %} active{% endif %}">Payroll</a>
     <a href="{{ url_for('approvals', role=role, tab=tab, module='payment') }}" class="erp-tab{% if module_filter == 'payment' %} active{% endif %}">Payment</a>
   </nav>

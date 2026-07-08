@@ -6,7 +6,14 @@
   function postApproval(actionUrl, payload) {
     const body = new FormData();
     Object.keys(payload).forEach(function (key) {
-      body.append(key, payload[key]);
+      const value = payload[key];
+      if (Array.isArray(value)) {
+        value.forEach(function (entry) {
+          body.append(key, entry);
+        });
+        return;
+      }
+      body.append(key, value);
     });
     return fetch(actionUrl, {
       method: "POST",
@@ -14,6 +21,36 @@
       credentials: "same-origin",
       redirect: "manual",
     });
+  }
+
+  function submitBulkForm(actionUrl, ids, bulkAction, role) {
+    const form = document.createElement("form");
+    form.method = "post";
+    form.action = actionUrl;
+    form.style.display = "none";
+
+    ids.forEach(function (id) {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = "approval_ids";
+      input.value = id;
+      form.appendChild(input);
+    });
+
+    ["action", "role"].forEach(function (name) {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = name;
+      input.value = name === "action" ? bulkAction : role;
+      form.appendChild(input);
+    });
+
+    document.body.appendChild(form);
+    if (typeof form.requestSubmit === "function") {
+      form.requestSubmit();
+      return;
+    }
+    form.submit();
   }
 
   function initApprovalsBulk() {
@@ -126,19 +163,7 @@
         }
         submitBtn.disabled = true;
         submitBtn.textContent = "Processing…";
-
-        (async function runBulk() {
-          for (let i = 0; i < ids.length; i += 1) {
-            await postApproval(actionUrl, {
-              approval_id: ids[i],
-              action: bulkAction,
-              role: role,
-            });
-          }
-          window.location.reload();
-        })().catch(function () {
-          window.location.reload();
-        });
+        submitBulkForm(actionUrl, ids, bulkAction, role);
       });
     }
 
