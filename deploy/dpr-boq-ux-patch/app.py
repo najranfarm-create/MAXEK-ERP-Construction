@@ -13645,13 +13645,13 @@ def attendance():
     projects = get_attendance_project_options()
     trades = get_active_trades()
     designations = get_active_designations()
-    view_id = request.args.get("view")
-    edit_id = request.args.get("edit")
-    view_monthly_id = request.args.get("view_monthly", type=int)
-    edit_monthly_id = request.args.get("edit_monthly", type=int)
+    view_id = _safe_int(request.args.get("view"))
+    edit_id = _safe_int(request.args.get("edit"))
+    view_monthly_id = _safe_int(request.args.get("view_monthly"))
+    edit_monthly_id = _safe_int(request.args.get("edit_monthly"))
     attendance_mode = request.args.get("mode", "daily")
-    select_trade = request.args.get("select_trade", type=int)
-    select_designation = request.args.get("select_designation", type=int)
+    select_trade = _safe_int(request.args.get("select_trade"))
+    select_designation = _safe_int(request.args.get("select_designation"))
     subcontractor_nav = request.args.get("nav") == "subcontract"
     if subcontractor_nav:
         attendance_mode = "daily"
@@ -22457,10 +22457,10 @@ def timesheet():
     projects = get_attendance_project_options()
     trades = get_active_trades()
     designations = get_active_designations()
-    select_trade = request.args.get("select_trade", type=int)
-    select_designation = request.args.get("select_designation", type=int)
-    view_id = request.args.get("view")
-    edit_id = request.args.get("edit")
+    select_trade = _safe_int(request.args.get("select_trade"))
+    select_designation = _safe_int(request.args.get("select_designation"))
+    view_id = _safe_int(request.args.get("view"))
+    edit_id = _safe_int(request.args.get("edit"))
     view_record = edit_record = None
     edit_worker_ctx = {"staff_type": "", "subcontractor_id": ""}
     wf_ctx = {}
@@ -25920,7 +25920,7 @@ def employee_timesheets_form():
     db = get_db()
     _prepare_employee_timesheet_db(db)
     if request.method == "POST":
-        edit_id = request.form.get("timesheet_id", type=int)
+        edit_id = _safe_int(request.form.get("timesheet_id"))
         year_month_saved = (request.form.get("year_month") or "").strip()
         project_id_saved = (request.form.get("project_id") or "").strip()
         try:
@@ -25945,8 +25945,8 @@ def employee_timesheets_form():
             flash(f"Could not save timesheet — database schema needs an update. ({exc})")
             return redirect(request.referrer or url_for("employee_timesheets_form", new=1))
 
-    view_id = request.args.get("view", type=int)
-    edit_id = request.args.get("edit", type=int)
+    view_id = _safe_int(request.args.get("view"))
+    edit_id = _safe_int(request.args.get("edit"))
     view_record = edit_record = None
     day_rows: list[dict] = []
     if view_id:
@@ -25968,7 +25968,7 @@ def employee_timesheets_form():
     today_ym = datetime.now().strftime("%Y-%m")
     today_day_num = datetime.now().day if not edit_record else None
     preserve_ym = request.args.get("year_month", "").strip()
-    preserve_project_id = request.args.get("project_id", type=int)
+    preserve_project_id = _safe_int(request.args.get("project_id"))
     return render_template(
         "employee_timesheet_form.html",
         view_record=view_record,
