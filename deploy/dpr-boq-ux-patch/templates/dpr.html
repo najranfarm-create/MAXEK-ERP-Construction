@@ -322,15 +322,12 @@
       <button type="button" class="erp-data-entry-nav erp-data-entry-nav--close" data-entry-close aria-label="Close entry"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
     </div>
     {% if editing_measurement %}
-    <div class="erp-validation" style="margin-bottom: 1rem;">
-      <strong>Editing DPR #{{ editing_measurement.id }}</strong> —
-      {{ editing_measurement.project_code or editing_measurement.project_id }} — {{ editing_measurement.project_name or '—' }} ·
-      Date {{ editing_measurement.report_date or '—' }} ·
-      BOQ {{ editing_measurement.boq_number or '—' }} — {{ editing_measurement.boq_description or '—' }} ·
-      Status {{ role_status_badge(editing_measurement.approval_status or 'Draft', 'maker')|safe }} ·
-      {{ (editing_measurement.dpr_status or 'submitted')|title }}
-      {% if edit_role %}<span class="workflow-role-badge role-{{ edit_role|lower }}">{{ edit_role|title }}</span>{% endif %}
-      <a href="{{ url_for('dpr_entry', view=editing_measurement.id) }}" class="erp-btn erp-btn-ghost erp-btn-sm" style="margin-left: 0.5rem;">View record</a>
+    <div class="erp-validation erp-validation--compact" style="margin-bottom: 1rem;">
+      <strong>DPR #{{ editing_measurement.id }}</strong>
+      · {{ editing_measurement.project_code or editing_measurement.project_id }}
+      · BOQ {{ editing_measurement.boq_number or '—' }}
+      · {{ role_status_badge(editing_measurement.approval_status or 'Draft', 'maker')|safe }}
+      <a href="{{ url_for('dpr_entry', view=editing_measurement.id) }}" class="erp-btn erp-btn-ghost erp-btn-sm" style="margin-left: 0.5rem;">View</a>
     </div>
     {% endif %}
     <form method="post" enctype="multipart/form-data" class="erp-form-grid" data-dpr-form
@@ -521,9 +518,6 @@
       </div>
 
       <div class="span-2" data-dpr-measurement-section>
-        <p class="erp-form-hint dpr-boq-pick-hint" data-dpr-boq-pick-hint>
-          <i class="fa-solid fa-circle-info"></i> Select <strong>Project</strong>, then <strong>BOQ Number</strong> and <strong>BOQ Description</strong> to unlock measurement entry for that BOQ item. Use <strong>Bulk BOQ Entry</strong> to apply the same measurements to multiple items.
-        </p>
       <div data-dpr-measurement-panel hidden>
         <h4 class="erp-form-subtitle">Measurements <span data-dpr-measurement-scope-hint class="erp-form-hint"></span></h4>
         <div data-dpr-volume-panel hidden>
@@ -1028,28 +1022,18 @@
   .dpr-dimension-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
   .dpr-reading-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.35rem; }
   .dpr-reading-row input { flex: 1; }
-  .dpr-steel-line { border: 1px solid var(--erp-border, #e2e8f0); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.75rem; }
+  .dpr-steel-line { border: 1px solid var(--border-form, rgba(148, 163, 184, 0.25)); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.75rem; }
   .dpr-attach-table { min-width: 880px; }
   .dpr-attach-actions { white-space: nowrap; min-width: 11rem; }
   .dpr-attach-actions .erp-btn { margin-right: 0.35rem; }
   .dpr-attach-actions .erp-btn:last-child { margin-right: 0; }
   .dpr-progress-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-top: 0.5rem; }
-  .dpr-progress-card { border: 1px solid var(--erp-border, #e2e8f0); border-radius: 8px; padding: 0.65rem 0.75rem; background: #f8fafc; }
-  .dpr-progress-card span { display: block; font-size: 0.75rem; color: #64748b; margin-bottom: 0.25rem; }
-  .dpr-progress-card strong { font-size: 1rem; }
   .dpr-inline-check { display: inline-flex; align-items: center; gap: 0.35rem; margin-top: 0.5rem; font-size: 0.9rem; }
   .dpr-boq-checkbox-list label { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.4rem 0.5rem; border-radius: 6px; cursor: pointer; }
-  .dpr-boq-checkbox-list label:hover { background: #f1f5f9; }
   .dpr-boq-checkbox-list input { margin-top: 0.2rem; }
-  .dpr-boq-checkbox-meta { font-size: 0.8rem; color: #64748b; }
   .dpr-selected-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.35rem; }
-  .dpr-selected-chip { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.6rem; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 999px; font-size: 0.85rem; }
-  .dpr-selected-chip strong { color: #1e40af; }
-  .dpr-selected-chip-meta { color: #64748b; font-size: 0.75rem; }
-  .dpr-unsaved-hint { color: #b45309; margin-right: auto; }
+  .dpr-unsaved-hint { color: #fbbf24; margin-right: auto; }
   .dpr-open-saved-grid { grid-template-columns: minmax(140px, 0.6fr) minmax(200px, 1.2fr) minmax(280px, 2fr); }
-  .dpr-boq-pick-hint { margin: 0 0 0.75rem; padding: 0.65rem 0.85rem; border-radius: 8px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); }
-  .dpr-boq-pick-hint[hidden] { display: none !important; }
   .maxek-layout .erp-field--billing { max-width: 280px; }
   .module-layout--entry-form-open [data-hide-on-entry-open] { display: none !important; }
 </style>

@@ -40,12 +40,16 @@ FILES=(
   project_completion_service.py
   boq_management_service.py
   boq_management_routes.py
+  templates/dpr.html
   templates/revised_estimate.html
   templates/toc_extension.html
   templates/project_completion.html
+  static/css/maxek-dashboard.css
   static/js/revised-estimate.js
   static/js/toc-extension.js
   static/js/project-completion.js
+  static/js/dpr-forms.js
+  static/js/maxek-ui.js
 )
 
 for f in "${FILES[@]}"; do

@@ -436,6 +436,7 @@
   padding: 0 var(--layout-toolbar-padding-x);
   gap: var(--layout-gap);
   flex-shrink: 0;
+  overflow: visible;
 }
 
 .maxek-layout .search-wrapper {
@@ -474,6 +475,9 @@
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
+  overflow: visible;
+  padding-top: 2px;
+  padding-right: 2px;
 }
 
 .maxek-layout .timestamp,
@@ -870,6 +874,7 @@
   justify-content: center;
   text-decoration: none;
   font-size: 15px;
+  overflow: visible;
 }
 
 .maxek-layout .header-icon-btn:hover {
@@ -900,19 +905,24 @@
 
 .maxek-layout .header-badge {
   position: absolute;
-  top: -4px;
-  right: -4px;
+  top: 0;
+  right: 0;
+  transform: translate(40%, -40%);
   background: var(--maxek-red);
   color: #fff;
   font-size: 10px;
   font-weight: 700;
-  min-width: 16px;
-  height: 16px;
-  border-radius: 8px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 4px;
+  padding: 0 5px;
+  z-index: 3;
+  line-height: 1;
+  box-shadow: 0 0 0 2px var(--maxek-header-bg, #141822);
+  pointer-events: none;
 }
 
 .maxek-layout .profile-chip {
@@ -8192,21 +8202,30 @@
   align-items: center;
   gap: 8px;
   margin: 0 0 1rem;
-  padding: 8px 12px;
+  padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--erp-border, rgba(148, 163, 184, 0.22));
   background: var(--erp-surface-muted, rgba(15, 23, 42, 0.35));
+  position: relative;
+  z-index: 6;
+  flex-shrink: 0;
 }
 
 .maxek-layout .erp-page-nav-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-height: 32px;
 }
 
 .maxek-layout.pro-dashboard-mode[data-pro-theme="business"] .erp-page-nav-strip {
-  background: #f8fafc;
-  border-color: #e2e8f0;
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.maxek-layout.pro-dashboard-mode[data-pro-theme="business"] .erp-page-nav-strip .erp-btn-ghost {
+  color: #0f172a;
+  border-color: #94a3b8;
 }
 
 .maxek-layout .dpr-saved-docs-card {
@@ -8242,4 +8261,95 @@
   padding: 0.75rem 0;
   margin-bottom: 0.5rem;
   border-bottom: 1px dashed var(--erp-border, rgba(148, 163, 184, 0.18));
+}
+
+/* DPR — dark-theme readable chips, progress cards, BOQ list */
+.maxek-layout .dpr-progress-card {
+  border: 1px solid var(--border-form, rgba(148, 163, 184, 0.28));
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+  background: rgba(15, 23, 42, 0.72);
+  color: var(--text-main, #e2e8f0);
+}
+
+.maxek-layout .dpr-progress-card span {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+  margin-bottom: 0.25rem;
+}
+
+.maxek-layout .dpr-progress-card strong {
+  font-size: 1rem;
+  color: var(--text-main, #f1f5f9);
+  font-weight: 700;
+}
+
+.maxek-layout .dpr-selected-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  background: rgba(37, 99, 235, 0.18);
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: var(--text-main, #e2e8f0);
+}
+
+.maxek-layout .dpr-selected-chip strong {
+  color: #93c5fd;
+}
+
+.maxek-layout .dpr-selected-chip-meta {
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.75rem;
+}
+
+.maxek-layout .dpr-boq-checkbox-list label:hover {
+  background: rgba(148, 163, 184, 0.1);
+}
+
+.maxek-layout .dpr-boq-checkbox-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.maxek-layout .dpr-boq-checkbox-list {
+  background: rgba(15, 23, 42, 0.35);
+  border-color: var(--border-form, rgba(148, 163, 184, 0.28)) !important;
+}
+
+.maxek-layout .erp-validation--compact {
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+[data-theme="pro-light"] .maxek-layout .dpr-progress-card,
+.maxek-layout.pro-dashboard-mode[data-pro-theme="business"] .dpr-progress-card {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+[data-theme="pro-light"] .maxek-layout .dpr-progress-card span,
+.maxek-layout.pro-dashboard-mode[data-pro-theme="business"] .dpr-progress-card span {
+  color: #64748b;
+}
+
+[data-theme="pro-light"] .maxek-layout .dpr-progress-card strong,
+.maxek-layout.pro-dashboard-mode[data-pro-theme="business"] .dpr-progress-card strong {
+  color: #0f172a;
+}
+
+[data-theme="pro-light"] .maxek-layout .dpr-selected-chip,
+.maxek-layout.pro-dashboard-mode[data-pro-theme="business"] .dpr-selected-chip {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1e3a8a;
+}
+
+[data-theme="pro-light"] .maxek-layout .dpr-selected-chip strong,
+.maxek-layout.pro-dashboard-mode[data-pro-theme="business"] .dpr-selected-chip strong {
+  color: #1d4ed8;
 }
