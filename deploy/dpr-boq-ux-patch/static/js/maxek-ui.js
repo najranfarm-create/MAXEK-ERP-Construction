@@ -1505,23 +1505,33 @@ document.addEventListener('DOMContentLoaded', function () {
   };
 
   function initLanguageSwitcher() {
+    var root = document.querySelector('[data-language-dropdown]');
     var select = document.querySelector('[data-language-select]');
-    if (!select) return;
+    if (!root && !select) return;
     var storageKey = 'maxek-ui-language';
-    try {
-      var stored = localStorage.getItem(storageKey);
-      if (stored) {
-        select.value = stored;
-        document.documentElement.lang = stored;
+    var currentLabel = root ? root.querySelector('[data-language-current]') : null;
+    var menuApi = root
+      ? initDropdownMenu(root, '[data-language-toggle]', '.header-language-panel')
+      : null;
+
+    function applyLanguage(lang) {
+      var value = lang || 'en';
+      document.documentElement.lang = value;
+      if (select) {
+        select.value = value;
       }
-    } catch (err) {
-      /* ignore */
-    }
-    select.addEventListener('change', function () {
-      var lang = select.value || 'en';
-      document.documentElement.lang = lang;
+      if (currentLabel) {
+        currentLabel.textContent = value.toUpperCase();
+      }
+      if (root) {
+        root.querySelectorAll('[data-language-value]').forEach(function (btn) {
+          var match = btn.getAttribute('data-language-value') === value;
+          btn.classList.toggle('is-active', match);
+          btn.setAttribute('aria-selected', match ? 'true' : 'false');
+        });
+      }
       try {
-        localStorage.setItem(storageKey, lang);
+        localStorage.setItem(storageKey, value);
       } catch (err) {
         /* ignore */
       }
@@ -1529,11 +1539,37 @@ document.addEventListener('DOMContentLoaded', function () {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ language: lang }),
+        body: JSON.stringify({ language: value }),
       }).catch(function () {
         /* offline */
       });
-    });
+    }
+
+    try {
+      var stored = localStorage.getItem(storageKey);
+      if (stored) {
+        applyLanguage(stored);
+      }
+    } catch (err) {
+      /* ignore */
+    }
+
+    if (root) {
+      root.querySelectorAll('[data-language-value]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          applyLanguage(button.getAttribute('data-language-value') || 'en');
+          if (menuApi && menuApi.closeMenu) {
+            menuApi.closeMenu();
+          }
+        });
+      });
+    }
+
+    if (select) {
+      select.addEventListener('change', function () {
+        applyLanguage(select.value || 'en');
+      });
+    }
   }
 
   function initDropdownMenu(root, toggleSelector, menuSelector) {

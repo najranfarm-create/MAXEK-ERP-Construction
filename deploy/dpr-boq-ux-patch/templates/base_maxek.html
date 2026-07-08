@@ -47,7 +47,7 @@
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/maxek-dashboard.css') }}?v=20260708-settings-fix">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/maxek-dashboard.css') }}?v=20260708-approvals-fix">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/maxek-table-standards.css') }}?v=20260626-entrypanels">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/maxek-field-standards.css') }}?v=20260628-biz-fields">
 
@@ -127,10 +127,12 @@
           <div class="{% if pro_shell_dashboard|default(false) %}pro-dash-dashboard-host{% else %}pro-dash-content pro-dash-content--module{% endif %}"{% if pro_shell_dashboard|default(false) %} data-dashboard-theme="default"{% endif %}>
             {% if show_department_subbar and not pro_shell_dashboard|default(false) %}
             <div class="department-subbar pro-dash-department-subbar" id="department-subbar" data-subbar-key="{{ active_toolbar_slug or nav_group.slug }}" aria-label="{{ nav_group.label }} toolbar">
+              {% if not hide_department_subbar_title|default(false) %}
               <div class="department-subbar-title">
                 <i class="fa-solid {{ nav_group.icon }}"></i>
                 <span>{{ nav_group.label }}</span>
               </div>
+              {% endif %}
               <div class="department-subbar-scroll">
                 {% if sub_toolbar_sections is defined and sub_toolbar_sections %}
                 {% for section in sub_toolbar_sections %}
@@ -288,6 +290,7 @@
 
       <div class="department-subbar" id="department-subbar" data-subbar-key="{{ active_toolbar_slug or nav_group.slug }}" aria-label="{{ nav_group.label }} toolbar">
 
+        {% if not hide_department_subbar_title|default(false) %}
         <div class="department-subbar-title">
 
           <i class="fa-solid {{ nav_group.icon }}"></i>
@@ -295,6 +298,7 @@
           <span>{{ nav_group.label }}</span>
 
         </div>
+        {% endif %}
 
         <div class="department-subbar-scroll">
 

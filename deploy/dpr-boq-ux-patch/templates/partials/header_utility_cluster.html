@@ -8,15 +8,32 @@
       title="Current date and time"
     >{{ timestamp }}</div>
 
-    <label class="header-language-wrap" title="Interface language">
-      <i class="fa-solid fa-language" aria-hidden="true"></i>
-      <select class="header-language-select" data-language-select aria-label="Interface language">
+    <div class="header-language-menu" data-language-dropdown>
+      <button
+        type="button"
+        class="header-language-toggle"
+        data-language-toggle
+        aria-expanded="false"
+        aria-haspopup="listbox"
+        title="Interface language"
+      >
+        <i class="fa-solid fa-language" aria-hidden="true"></i>
+        <span data-language-current>{{ (session.get('language') or 'en')|upper }}</span>
+        <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+      </button>
+      <div class="header-language-panel" hidden role="listbox" aria-label="Interface language">
+        <button type="button" class="header-language-option{% if (session.get('language') or 'en') == 'en' %} is-active{% endif %}" data-language-value="en" role="option">EN — English</button>
+        <button type="button" class="header-language-option{% if session.get('language') == 'hi' %} is-active{% endif %}" data-language-value="hi" role="option">HI — Hindi</button>
+        <button type="button" class="header-language-option{% if session.get('language') == 'ar' %} is-active{% endif %}" data-language-value="ar" role="option">AR — Arabic</button>
+        <button type="button" class="header-language-option{% if session.get('language') == 'ml' %} is-active{% endif %}" data-language-value="ml" role="option">ML — Malayalam</button>
+      </div>
+      <select class="header-language-select sr-only" data-language-select aria-hidden="true" tabindex="-1">
         <option value="en"{% if (session.get('language') or 'en') == 'en' %} selected{% endif %}>EN</option>
         <option value="hi"{% if session.get('language') == 'hi' %} selected{% endif %}>HI</option>
         <option value="ar"{% if session.get('language') == 'ar' %} selected{% endif %}>AR</option>
         <option value="ml"{% if session.get('language') == 'ml' %} selected{% endif %}>ML</option>
       </select>
-    </label>
+    </div>
   </div>
 
   <div class="header-icon-group">

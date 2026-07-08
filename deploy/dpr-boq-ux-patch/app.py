@@ -7417,6 +7417,144 @@ def _split_approval_items(items, role):
     return pending, history
 
 
+def _resolve_approval_module_filter(module_key):
+    key = (module_key or "").strip().lower()
+    if key == "attendance":
+        key = "timesheet"
+    if key in APPROVAL_MODULE_GROUPS:
+        return key
+    return ""
+
+
+def _paginate_sequence(items, page=1, per_page=15):
+    page = max(1, int(page or 1))
+    per_page = max(10, min(50, int(per_page or 15)))
+    if per_page not in (10, 15):
+        per_page = 15 if per_page > 12 else 10
+    total = len(items)
+    pages = max(1, (total + per_page - 1) // per_page)
+    page = min(page, pages)
+    start = (page - 1) * per_page
+    return {
+        "items": items[start : start + per_page],
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "pages": pages,
+        "from": start + 1 if total else 0,
+        "to": min(start + per_page, total),
+    }
+
+
+_APPROVAL_HISTORY_STATUSES = (
+    "approved",
+    "rejected_checker",
+    "rejected_approver",
+    "rejected",
+)
+
+
+def _filter_history_rows_for_role(rows, user_id, role, admin):
+    if admin or not user_id:
+        return rows
+    filtered = []
+    for row in rows:
+        maker_id = row.get("maker_user_id")
+        checker_id = row.get("checker_user_id")
+        approver_id = row.get("approver_user_id")
+        if role == "maker" and maker_id == user_id:
+            filtered.append(row)
+        elif role == "checker" and (checker_id == user_id or maker_id == user_id):
+            filtered.append(row)
+        elif role == "approver" and (
+            approver_id == user_id or checker_id == user_id or maker_id == user_id
+        ):
+            filtered.append(row)
+    return filtered
+
+
+def _approval_history_items_fallback(db, user_id, role, admin, scope):
+    if not _table_exists(db, "approval_requests"):
+        return []
+    placeholders = ",".join("?" * len(_APPROVAL_HISTORY_STATUSES))
+    sql = (
+        "SELECT * FROM approval_requests "
+        f"WHERE workflow_status IN ({placeholders}) "
+        "ORDER BY COALESCE(approver_action_at, checker_action_at, created_at) DESC "
+        "LIMIT 400"
+    )
+    scoped_sql, scoped_params = _append_tenant_filter(sql, tuple(_APPROVAL_HISTORY_STATUSES), "")
+    rows = [dict(row) for row in db.execute(scoped_sql, scoped_params).fetchall()]
+    return _filter_history_rows_for_role(rows, user_id, role, admin)
+
+
+def _get_approval_history_raw(db, user_id, role, admin, scope):
+    queue_kwargs = (
+        {"queue": "history"},
+        {"tab": "history"},
+        {"include_history": True},
+        {"history": True},
+    )
+    for extra in queue_kwargs:
+        try:
+            items = get_workflow_queue(
+                db,
+                user_id,
+                role,
+                admin,
+                customer_id=scope.get("customer_id"),
+                workflow_role=scope.get("workflow_role"),
+                **extra,
+            )
+        except TypeError:
+            continue
+        if items:
+            return items
+    return _approval_history_items_fallback(db, user_id, role, admin, scope)
+
+
+def _approval_category_tab_counts(db, user_id, role, admin, scope):
+    raw_items = get_pending_items(
+        db,
+        user_id,
+        role,
+        admin,
+        customer_id=scope.get("customer_id"),
+        workflow_role=scope.get("workflow_role"),
+    )
+    counts = {"all": len(raw_items)}
+    for key, module_ids in APPROVAL_MODULE_GROUPS.items():
+        if key == "attendance":
+            continue
+        counts[key] = sum(1 for item in raw_items if item.get("module_id") in module_ids)
+    counts["attendance"] = counts.get("timesheet", 0)
+    return counts
+
+
+def _approval_filtered_counts(db, user_id, admin, scope, module_ids=None):
+    return {
+        "maker": _approval_role_pending_count(db, user_id, "maker", admin, scope, module_ids),
+        "checker": _approval_role_pending_count(db, user_id, "checker", admin, scope, module_ids),
+        "approver": _approval_role_pending_count(db, user_id, "approver", admin, scope, module_ids),
+    }
+
+
+def _approval_role_pending_count(db, user_id, role, admin, scope, module_ids=None):
+    raw_items = get_pending_items(
+        db,
+        user_id,
+        role,
+        admin,
+        customer_id=scope.get("customer_id"),
+        workflow_role=scope.get("workflow_role"),
+    )
+    if module_ids:
+        raw_items = [item for item in raw_items if item.get("module_id") in module_ids]
+    enriched = _enrich_approval_items(db, raw_items, role=role, include_history=False)
+    pending_items, _history = _split_approval_items(enriched, role)
+    return len(pending_items)
+
+
 def _history_for_record(module_id, record_id, record_table):
     return get_approval_history(get_db(), module_id, record_id, record_table)
 
@@ -7432,6 +7570,7 @@ APPROVAL_MODULE_GROUPS = {
     ),
     "store": ("material_request", "store_issue", "store_receipt", "material_transfer"),
     "timesheet": ("daily_timesheet", "monthly_staff_attendance", "employee_timesheet"),
+    "attendance": ("daily_timesheet", "monthly_staff_attendance", "employee_timesheet"),
     "payroll": ("payroll", "leave_request"),
     "payment": (
         "account_payment",
@@ -8380,7 +8519,7 @@ NAV_GROUPS = [
                 "endpoint": "approvals",
                 "label": "Attendance Approvals",
                 "icon": "fa-calendar-check",
-                "query": {"module": "timesheet"},
+                "query": {"module": "attendance"},
                 "active_endpoints": ["approvals", "approval_detail", "approval_action"],
             },
             {
@@ -8990,6 +9129,28 @@ def inject_maxek_layout():
         badge_val = badge_for_endpoint(item.get("endpoint", ""), live_badges)
         if badge_val:
             item["badge"] = badge_val
+    if request.endpoint in ("approvals", "approval_detail", "approval_action"):
+        approval_role = (request.view_args or {}).get("role") or "checker"
+        if approval_role not in ("maker", "checker", "approver"):
+            approval_role = "checker"
+        try:
+            cat_counts = _approval_category_tab_counts(
+                db, user_id, approval_role, is_admin_user(), scope
+            )
+            for item in sub_toolbar_items:
+                if item.get("endpoint") != "approvals":
+                    continue
+                mod = _resolve_approval_module_filter((item.get("query") or {}).get("module", ""))
+                if mod:
+                    count = cat_counts.get(mod, 0)
+                else:
+                    count = cat_counts.get("all", 0)
+                if count:
+                    item["badge"] = count
+                else:
+                    item.pop("badge", None)
+        except Exception:
+            pass
     company_id = session.get("company_id")
     context_customer_filter = None if platform_super_admin else session.get("customer_id")
     context_branches = list_context_branches(db, company_id)
@@ -18087,34 +18248,42 @@ def approvals(role="checker"):
     tab = request.args.get("tab", "pending").strip()
     if tab not in ("pending", "history"):
         tab = "pending"
-    module_key = request.args.get("module", "").strip()
-    module_ids = APPROVAL_MODULE_GROUPS.get(module_key)
+    module_key = _resolve_approval_module_filter(request.args.get("module", ""))
+    module_ids = APPROVAL_MODULE_GROUPS.get(module_key) if module_key else None
     scope = _workflow_scope_kwargs()
-    counts = get_pending_counts(
-        db, user_id, admin,
-        customer_id=scope["customer_id"],
-        workflow_role=scope["workflow_role"],
-    )
-    raw_items = get_pending_items(
-        db, user_id, role, admin,
-        customer_id=scope["customer_id"],
-        workflow_role=scope["workflow_role"],
-    )
+    counts = _approval_filtered_counts(db, user_id, admin, scope, module_ids)
+    if tab == "history":
+        raw_items = _get_approval_history_raw(db, user_id, role, admin, scope)
+    else:
+        raw_items = get_pending_items(
+            db, user_id, role, admin,
+            customer_id=scope["customer_id"],
+            workflow_role=scope["workflow_role"],
+        )
     if module_ids:
         raw_items = [item for item in raw_items if item.get("module_id") in module_ids]
-    items = _enrich_approval_items(db, raw_items, role=role, include_history=False)
+    items = _enrich_approval_items(db, raw_items, role=role, include_history=(tab == "history"))
     pending_items, history_items = _split_approval_items(items, role)
     display_items = pending_items if tab == "pending" else history_items
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 15, type=int)
+    pagination = _paginate_sequence(display_items, page=page, per_page=per_page)
+    module_filter_display = "attendance" if module_key == "timesheet" else module_key
     return render_template(
         "approvals.html",
         role=role,
         tab=tab,
-        module_filter=module_key,
+        module_filter=module_filter_display,
+        module_filter_key=module_key,
         counts=counts,
         pending_items=pending_items,
         history_items=history_items,
-        items=display_items,
+        items=pagination["items"],
+        pagination=pagination,
         module_routes=MODULE_ROUTES,
+        hide_page_title=True,
+        hide_department_subbar_title=True,
+        body_class_extra="approvals-page",
     )
 
 
@@ -18156,6 +18325,9 @@ def approval_action():
         text = str(value).strip()
         if text.isdigit():
             bulk_ids.append(int(text))
+    if len(bulk_ids) > 10:
+        flash("Maximum 10 items can be selected at a time.", "warning")
+        return redirect(request.referrer or url_for("approvals", role=role))
     bulk_ids = bulk_ids[:10]
     single_id = (request.form.get("approval_id") or "").strip()
     if not bulk_ids and single_id.isdigit():
@@ -18164,6 +18336,23 @@ def approval_action():
         flash("No approval item selected.", "warning")
         return redirect(request.referrer or url_for("approvals", role=role))
 
+    ok_count, last_message, _counts = _process_approval_bulk(
+        db, bulk_ids, action, comments, role
+    )
+    if last_message == "Unable to save approval changes.":
+        flash(last_message, "warning")
+        return redirect(request.referrer or url_for("approvals", role=role))
+    if len(bulk_ids) == 1:
+        flash(last_message, "success" if ok_count else "warning")
+    elif ok_count:
+        verb = "verified" if role == "checker" else "approved"
+        flash(f"Successfully {verb} {ok_count} item(s).", "success")
+    else:
+        flash(last_message or "Unable to process selected approvals.", "warning")
+    return redirect(request.referrer or url_for("approvals", role=role))
+
+
+def _process_approval_bulk(db, bulk_ids, action, comments, role):
     ok_count = 0
     last_message = "No items processed."
     for approval_id in bulk_ids:
@@ -18196,16 +18385,71 @@ def approval_action():
         db.commit()
     except Exception:
         db.rollback()
-        flash("Unable to save approval changes.", "warning")
-        return redirect(request.referrer or url_for("approvals", role=role))
-    if len(bulk_ids) == 1:
-        flash(last_message, "success" if ok_count else "warning")
-    else:
-        flash(
-            f"Completed {ok_count} of {len(bulk_ids)} selected approvals.",
-            "success" if ok_count else "warning",
+        return (
+            0,
+            "Unable to save approval changes.",
+            _approval_filtered_counts(
+                db,
+                session.get("user_id"),
+                is_admin_user(),
+                _workflow_scope_kwargs(),
+            ),
         )
-    return redirect(request.referrer or url_for("approvals", role=role))
+    counts = _approval_filtered_counts(
+        db,
+        session.get("user_id"),
+        is_admin_user(),
+        _workflow_scope_kwargs(),
+    )
+    return ok_count, last_message, counts
+
+
+@app.route("/api/approvals/bulk-verify", methods=["POST"])
+@login_required
+def api_approvals_bulk_verify():
+    payload = request.get_json(silent=True) or {}
+    raw_ids = payload.get("approvalIds") or payload.get("approval_ids") or []
+    role = (payload.get("role") or request.args.get("role") or "checker").strip()
+    comments = (payload.get("comments") or "").strip()
+    bulk_ids = []
+    for value in raw_ids:
+        text = str(value).strip()
+        if text.isdigit():
+            bulk_ids.append(int(text))
+    if len(bulk_ids) > 10:
+        return jsonify(
+            {
+                "ok": False,
+                "message": "Maximum 10 items can be selected at a time.",
+                "counts": _approval_filtered_counts(
+                    get_db(),
+                    session.get("user_id"),
+                    is_admin_user(),
+                    _workflow_scope_kwargs(),
+                ),
+            }
+        ), 400
+    if not bulk_ids:
+        return jsonify({"ok": False, "message": "No approval items selected."}), 400
+    db = get_db()
+    ok_count, last_message, counts = _process_approval_bulk(
+        db, bulk_ids[:10], "approve", comments, role
+    )
+    if last_message == "Unable to save approval changes.":
+        return jsonify({"ok": False, "message": last_message, "counts": counts}), 500
+    if ok_count == 0:
+        return jsonify(
+            {"ok": False, "message": last_message or "Unable to verify items.", "counts": counts}
+        ), 400
+    verb = "verified" if role == "checker" else "approved"
+    return jsonify(
+        {
+            "ok": True,
+            "message": f"Successfully {verb} {ok_count} item(s).",
+            "processed": ok_count,
+            "counts": counts,
+        }
+    )
 
 
 @app.route("/workflow/reopen", methods=["POST"])

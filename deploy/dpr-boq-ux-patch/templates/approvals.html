@@ -1,45 +1,52 @@
 {% extends 'base_maxek.html' %}
 {% set page_title = 'Approvals' %}
-{% set breadcrumbs = '<a href="' ~ url_for('dashboard') ~ '">Home</a> &gt; Approvals' %}
+{% set hide_page_title = true %}
+{% set hide_department_subbar_title = true %}
+{% block body_class %} approvals-page{% endblock %}
 {% block head_extra %}
-<script src="{{ url_for('static', filename='js/approvals-bulk.js') }}?v=20260708-bulk-form" defer></script>
+<script src="{{ url_for('static', filename='js/approvals-bulk.js') }}?v=20260708-approvals-fix" defer></script>
 {% endblock %}
 {% block content %}
 {% set bulk_action = 'approve' if role in ('checker', 'approver') else '' %}
-<div class="approvals-module" data-approvals-module data-approval-role="{{ role }}" data-bulk-action="{{ bulk_action }}" data-bulk-max="10" data-action-url="{{ url_for('approval_action') }}">
+{% set module_qs = ('?module=' ~ module_filter) if module_filter else '' %}
+{% set tab_qs = ('&tab=' ~ tab) if module_filter else ('?tab=' ~ tab) %}
+<div class="approvals-module" data-approvals-module data-approval-role="{{ role }}" data-bulk-action="{{ bulk_action }}" data-bulk-max="10" data-action-url="{{ url_for('approval_action') }}" data-bulk-api-url="{{ url_for('api_approvals_bulk_verify') }}">
   <div class="approval-widgets">
-    <a class="approval-widget" href="{{ url_for('approvals', role='maker', tab=tab) }}{% if module_filter %}?module={{ module_filter }}{% endif %}">
-      <h4>Maker queue</h4>
+    <a class="approval-widget{% if role == 'maker' %} is-active{% endif %}" href="{{ url_for('approvals', role='maker', tab=tab) }}{{ module_qs }}">
+      <h4><i class="fa-solid fa-user-pen" aria-hidden="true"></i> Maker queue</h4>
       <div class="count">{{ counts.maker or 0 }}</div>
+      <span class="approval-widget-label">Pending items</span>
     </a>
-    <a class="approval-widget" href="{{ url_for('approvals', role='checker', tab=tab) }}{% if module_filter %}?module={{ module_filter }}{% endif %}">
-      <h4>Checker queue</h4>
+    <a class="approval-widget{% if role == 'checker' %} is-active{% endif %}" href="{{ url_for('approvals', role='checker', tab=tab) }}{{ module_qs }}">
+      <h4><i class="fa-solid fa-users" aria-hidden="true"></i> Checker queue</h4>
       <div class="count">{{ counts.checker or 0 }}</div>
+      <span class="approval-widget-label">Pending items</span>
     </a>
-    <a class="approval-widget" href="{{ url_for('approvals', role='approver', tab=tab) }}{% if module_filter %}?module={{ module_filter }}{% endif %}">
-      <h4>Approver queue</h4>
+    <a class="approval-widget{% if role == 'approver' %} is-active{% endif %}" href="{{ url_for('approvals', role='approver', tab=tab) }}{{ module_qs }}">
+      <h4><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Approver queue</h4>
       <div class="count">{{ counts.approver or 0 }}</div>
+      <span class="approval-widget-label">Pending items</span>
     </a>
   </div>
 
-  <nav class="approval-tab-bar" aria-label="Approval role">
-    <a href="{{ url_for('approvals', role='maker', tab=tab) }}{% if module_filter %}?module={{ module_filter }}{% endif %}" class="erp-tab{% if role == 'maker' %} active{% endif %}">Maker</a>
-    <a href="{{ url_for('approvals', role='checker', tab=tab) }}{% if module_filter %}?module={{ module_filter }}{% endif %}" class="erp-tab{% if role == 'checker' %} active{% endif %}">Checker</a>
-    <a href="{{ url_for('approvals', role='approver', tab=tab) }}{% if module_filter %}?module={{ module_filter }}{% endif %}" class="erp-tab{% if role == 'approver' %} active{% endif %}">Approver</a>
+  <nav class="approval-tab-bar approval-tab-bar--row" aria-label="Approval role">
+    <a href="{{ url_for('approvals', role='maker', tab=tab) }}{{ module_qs }}" class="erp-tab{% if role == 'maker' %} active{% endif %}">Maker</a>
+    <a href="{{ url_for('approvals', role='checker', tab=tab) }}{{ module_qs }}" class="erp-tab{% if role == 'checker' %} active{% endif %}">Checker</a>
+    <a href="{{ url_for('approvals', role='approver', tab=tab) }}{{ module_qs }}" class="erp-tab{% if role == 'approver' %} active{% endif %}">Approver</a>
   </nav>
 
-  <nav class="approval-tab-bar" aria-label="Approval module" style="margin-top:0.5rem;">
+  <nav class="approval-tab-bar approval-tab-bar--row" aria-label="Approval module">
     <a href="{{ url_for('approvals', role=role, tab=tab) }}" class="erp-tab{% if not module_filter %} active{% endif %}">All modules</a>
     <a href="{{ url_for('approvals', role=role, tab=tab, module='purchase') }}" class="erp-tab{% if module_filter == 'purchase' %} active{% endif %}">Purchase</a>
     <a href="{{ url_for('approvals', role=role, tab=tab, module='store') }}" class="erp-tab{% if module_filter == 'store' %} active{% endif %}">Store</a>
-    <a href="{{ url_for('approvals', role=role, tab=tab, module='timesheet') }}" class="erp-tab{% if module_filter == 'timesheet' %} active{% endif %}">Attendance</a>
+    <a href="{{ url_for('approvals', role=role, tab=tab, module='attendance') }}" class="erp-tab{% if module_filter == 'attendance' %} active{% endif %}">Attendance</a>
     <a href="{{ url_for('approvals', role=role, tab=tab, module='payroll') }}" class="erp-tab{% if module_filter == 'payroll' %} active{% endif %}">Payroll</a>
     <a href="{{ url_for('approvals', role=role, tab=tab, module='payment') }}" class="erp-tab{% if module_filter == 'payment' %} active{% endif %}">Payment</a>
   </nav>
 
-  <nav class="approval-tab-bar" aria-label="Approval list" style="margin-top:0.5rem;">
-    <a href="{{ url_for('approvals', role=role, tab='pending') }}{% if module_filter %}?module={{ module_filter }}{% endif %}" class="erp-tab{% if tab == 'pending' %} active{% endif %}">Pending</a>
-    <a href="{{ url_for('approvals', role=role, tab='history') }}{% if module_filter %}?module={{ module_filter }}{% endif %}" class="erp-tab{% if tab == 'history' %} active{% endif %}">History</a>
+  <nav class="approval-tab-bar approval-tab-bar--row" aria-label="Approval status">
+    <a href="{{ url_for('approvals', role=role, tab='pending') }}{{ module_qs }}" class="erp-tab{% if tab == 'pending' %} active{% endif %}">Pending{% if tab == 'pending' %} <span class="approval-tab-count">{{ pagination.total }}</span>{% endif %}</a>
+    <a href="{{ url_for('approvals', role=role, tab='history') }}{{ module_qs }}" class="erp-tab{% if tab == 'history' %} active{% endif %}">History{% if tab == 'history' %} <span class="approval-tab-count">{{ pagination.total }}</span>{% endif %}</a>
   </nav>
 
   {% if tab == 'pending' and bulk_action %}
@@ -48,7 +55,7 @@
       <input type="checkbox" data-approvals-select-all aria-label="Select all visible pending items">
       <span>Select pending (max 10)</span>
     </label>
-    <span class="attendance-bulk-count" data-approvals-bulk-count>0 selected</span>
+    <span class="attendance-bulk-count" data-approvals-bulk-count>0 selected (max 10)</span>
     <div class="approvals-bulk-actions">
       <button type="button" class="erp-btn erp-btn-primary erp-btn-sm" data-approvals-bulk-submit disabled>
         {% if role == 'checker' %}Verify selected{% else %}Approve selected{% endif %}
@@ -57,12 +64,16 @@
   </div>
   {% endif %}
 
-  <div class="erp-table-panel">
-    <div class="erp-table-scroll">
+  <div class="erp-table-panel approvals-table-panel">
+    <div class="erp-table-scroll approvals-table-scroll">
       <table class="erp-table erp-table-module approvals-compact-table" data-approvals-table>
         <thead>
           <tr>
-            {% if tab == 'pending' and bulk_action %}<th class="approvals-bulk-col"><span class="sr-only">Select</span></th>{% endif %}
+            {% if tab == 'pending' and bulk_action %}
+            <th class="approvals-bulk-col">
+              <input type="checkbox" data-approvals-select-all-header aria-label="Select all visible pending items on this page">
+            </th>
+            {% endif %}
             <th>Reference</th>
             <th>Module</th>
             <th>Submitted</th>
@@ -97,11 +108,11 @@
               <a href="{{ url_for('approval_detail', approval_id=approval_pk, role=role) }}" class="erp-btn erp-btn-ghost erp-btn-sm">Open</a>
               {% endif %}
               {% if tab == 'pending' and item.is_pending and approval_pk %}
-                <form method="post" action="{{ url_for('approval_action') }}" class="workflow-inline-form">
+                <form method="post" action="{{ url_for('approval_action') }}" class="workflow-inline-form" data-approval-verify-form>
                   <input type="hidden" name="approval_id" value="{{ approval_pk }}">
                   <input type="hidden" name="action" value="approve">
                   <input type="hidden" name="role" value="{{ role }}">
-                  <button type="submit" class="erp-btn erp-btn-primary erp-btn-sm">
+                  <button type="submit" class="erp-btn erp-btn-primary erp-btn-sm" data-approval-verify>
                     {% if role == 'checker' %}Verify{% else %}Approve{% endif %}
                   </button>
                 </form>
@@ -123,6 +134,36 @@
         </tbody>
       </table>
     </div>
+
+    {% if pagination.total > 0 %}
+    <div class="approvals-pagination erp-pagination" data-approvals-pagination>
+      <div class="approvals-pagination-meta">
+        <label>
+          Rows per page
+          <select data-approvals-per-page aria-label="Rows per page">
+            <option value="10"{% if pagination.per_page == 10 %} selected{% endif %}>10</option>
+            <option value="15"{% if pagination.per_page == 15 %} selected{% endif %}>15</option>
+          </select>
+        </label>
+        <span>Showing {{ pagination.from }} to {{ pagination.to }} of {{ pagination.total }} entries</span>
+      </div>
+      <div class="approvals-pagination-controls">
+        {% set base_args = {'role': role, 'tab': tab, 'per_page': pagination.per_page} %}
+        {% if module_filter %}{% set _ = base_args.update({'module': module_filter}) %}{% endif %}
+        <a class="erp-btn erp-btn-ghost erp-btn-sm{% if pagination.page <= 1 %} is-disabled{% endif %}" {% if pagination.page > 1 %}href="{{ url_for('approvals', page=1, **base_args) }}"{% else %}href="#" tabindex="-1"{% endif %} aria-disabled="{{ 'true' if pagination.page <= 1 else 'false' }}">First</a>
+        <a class="erp-btn erp-btn-ghost erp-btn-sm{% if pagination.page <= 1 %} is-disabled{% endif %}" {% if pagination.page > 1 %}href="{{ url_for('approvals', page=pagination.page - 1, **base_args) }}"{% else %}href="#" tabindex="-1"{% endif %} aria-disabled="{{ 'true' if pagination.page <= 1 else 'false' }}">Previous</a>
+        {% for p in range(1, pagination.pages + 1) %}
+          {% if p == pagination.page or (p <= 2) or (p > pagination.pages - 2) or (p >= pagination.page - 1 and p <= pagination.page + 1) %}
+        <a class="erp-btn erp-btn-ghost erp-btn-sm{% if p == pagination.page %} is-active{% endif %}" href="{{ url_for('approvals', page=p, **base_args) }}">{{ p }}</a>
+          {% elif p == 3 or p == pagination.pages - 2 %}
+        <span class="approvals-pagination-ellipsis">…</span>
+          {% endif %}
+        {% endfor %}
+        <a class="erp-btn erp-btn-ghost erp-btn-sm{% if pagination.page >= pagination.pages %} is-disabled{% endif %}" {% if pagination.page < pagination.pages %}href="{{ url_for('approvals', page=pagination.page + 1, **base_args) }}"{% else %}href="#" tabindex="-1"{% endif %} aria-disabled="{{ 'true' if pagination.page >= pagination.pages else 'false' }}">Next</a>
+        <a class="erp-btn erp-btn-ghost erp-btn-sm{% if pagination.page >= pagination.pages %} is-disabled{% endif %}" {% if pagination.page < pagination.pages %}href="{{ url_for('approvals', page=pagination.pages, **base_args) }}"{% else %}href="#" tabindex="-1"{% endif %} aria-disabled="{{ 'true' if pagination.page >= pagination.pages else 'false' }}">Last</a>
+      </div>
+    </div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}
