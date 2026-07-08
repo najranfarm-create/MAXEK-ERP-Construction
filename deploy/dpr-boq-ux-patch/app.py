@@ -2549,6 +2549,16 @@ def _backfill_petty_cash_legacy_columns(db):
             "UPDATE petty_cash_requests SET approval_status='Draft' "
             "WHERE approval_status IS NULL OR TRIM(approval_status)=''"
         )
+        db.execute(
+            "UPDATE petty_cash_requests SET status='Approved' "
+            "WHERE status='Submitted' AND approval_status=?",
+            (RECORD_APPROVED,),
+        )
+        db.execute(
+            "UPDATE petty_cash_requests SET status='Rejected' "
+            "WHERE status='Submitted' AND approval_status IN (?, ?)",
+            (RECORD_REJECTED_CHECKER, RECORD_REJECTED_APPROVER),
+        )
     if "project_id" in cols and "project_name" in cols:
         db.execute(
             "UPDATE petty_cash_requests SET project_id=("
@@ -3783,8 +3793,10 @@ PETTY_CASH_WORKFLOW_STEPS = (
 )
 
 
-def _petty_cash_workflow_index(status):
+def _petty_cash_workflow_index(status, approval_status=None):
     """Map request status to workflow progress step index."""
+    if status == "Submitted" and approval_status == RECORD_APPROVED:
+        return 1
     mapping = {
         "Draft": 0,
         "Submitted": 0,
@@ -3797,6 +3809,41 @@ def _petty_cash_workflow_index(status):
         "Closed": 6,
     }
     return mapping.get(status or "Draft", 0)
+
+
+def _petty_cash_is_approved(request_row):
+    if not request_row:
+        return False
+    status = request_row.get("status") or "Draft"
+    approval = request_row.get("approval_status") or "Draft"
+    if status in (
+        "Approved",
+        "Funds Transferred",
+        "Amount Received",
+        "Settlement Pending",
+        "Settled",
+        "Closed",
+    ):
+        return True
+    return status == "Submitted" and approval == RECORD_APPROVED
+
+
+def _petty_cash_can_record_transfer(request_row):
+    if not _petty_cash_is_approved(request_row):
+        return False
+    status = (request_row or {}).get("status") or "Draft"
+    if status in (
+        "Funds Transferred",
+        "Amount Received",
+        "Settlement Pending",
+        "Settled",
+        "Closed",
+    ):
+        return False
+    return status == "Approved" or (
+        status == "Submitted"
+        and (request_row.get("approval_status") or "") == RECORD_APPROVED
+    )
 
 
 def _petty_cash_can_edit_request(request_row):
@@ -4665,6 +4712,40 @@ def _sync_payroll_run_after_workflow(db, approval_id):
             "UPDATE payroll_lines SET approval_status=? WHERE payroll_run_id=?",
             (RECORD_APPROVED, req["record_id"]),
         )
+
+
+def _sync_petty_cash_after_workflow(db, approval_id):
+    """Keep petty_cash_requests.status aligned with workflow outcome."""
+    req = db.execute(
+        "SELECT record_id, record_table FROM approval_requests WHERE id=?",
+        (approval_id,),
+    ).fetchone()
+    if not req or req["record_table"] != "petty_cash_requests":
+        return
+    row = db.execute(
+        "SELECT status, approval_status FROM petty_cash_requests WHERE id=?",
+        (req["record_id"],),
+    ).fetchone()
+    if not row:
+        return
+    approval = row["approval_status"] or "Draft"
+    status = row["status"] or "Draft"
+    status_map = {
+        RECORD_PENDING_CHECKER: "Submitted",
+        RECORD_PENDING_APPROVAL: "Submitted",
+        RECORD_APPROVED: "Approved",
+        RECORD_REJECTED_CHECKER: "Rejected",
+        RECORD_REJECTED_APPROVER: "Rejected",
+    }
+    new_status = status_map.get(approval)
+    if not new_status or status not in ("Draft", "Submitted", "Rejected"):
+        return
+    if new_status == status:
+        return
+    db.execute(
+        "UPDATE petty_cash_requests SET status=?, modified_at=? WHERE id=?",
+        (new_status, _petty_cash_timestamp(), req["record_id"]),
+    )
 
 
 def _prepare_store_db(db):
@@ -13872,7 +13953,7 @@ def petty_cash():
 
         if form_action == "save_transfer" and request_id:
             row = _load_petty_cash_request(db, request_id)
-            if not row or row.get("status") not in ("Approved", "Funds Transferred"):
+            if not row or not _petty_cash_can_record_transfer(row):
                 flash("Fund transfer is only allowed for approved requests.")
                 return redirect(url_for("petty_cash", view=request_id))
             try:
@@ -14210,6 +14291,9 @@ def petty_cash():
         if not transfer_record:
             flash("Request not found.")
             return redirect(url_for("petty_cash"))
+        if not _petty_cash_can_record_transfer(transfer_record):
+            flash("Fund transfer is only allowed for approved requests.")
+            return redirect(url_for("petty_cash", view=transfer_id))
     elif expenses_id:
         expenses_record = _load_petty_cash_request(db, expenses_id)
         if expenses_record:
@@ -14235,9 +14319,15 @@ def petty_cash():
     next_request_number = generate_petty_cash_request_number(db)
     petty_summary = _petty_cash_dashboard_summary(db)
     workflow_active_index = (
-        _petty_cash_workflow_index(view_record.get("status"))
+        _petty_cash_workflow_index(
+            view_record.get("status"),
+            view_record.get("approval_status"),
+        )
         if view_record
         else 0
+    )
+    can_record_transfer = (
+        _petty_cash_can_record_transfer(view_record) if view_record else False
     )
 
     return render_template(
@@ -14260,6 +14350,10 @@ def petty_cash():
         petty_summary=petty_summary,
         workflow_steps=PETTY_CASH_WORKFLOW_STEPS,
         workflow_active_index=workflow_active_index,
+        can_record_transfer=can_record_transfer,
+        petty_cash_is_approved=(
+            _petty_cash_is_approved(view_record) if view_record else False
+        ),
         filter_status=filter_status,
         filter_project=filter_project,
         filter_q=filter_q,
@@ -17934,6 +18028,7 @@ def approval_action():
             ok_count += 1
             try:
                 _sync_payroll_run_after_workflow(db, approval_id)
+                _sync_petty_cash_after_workflow(db, approval_id)
                 _sync_accounts_after_workflow(db, approval_id)
                 _sync_treasury_after_workflow(db, approval_id)
                 _sync_store_after_workflow(db, approval_id)
