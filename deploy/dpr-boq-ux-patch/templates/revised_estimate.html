@@ -1,0 +1,268 @@
+{% extends 'base_maxek.html' %}
+{% set page_title = 'Revised Estimate' %}
+{% set breadcrumbs = '<a href="' ~ url_for('dashboard') ~ '">Home</a> &gt; Projects &gt; Revised Estimate' %}
+{% block page_actions %}
+<a href="{{ url_for('boq_management', project_id=filter_project) if filter_project else url_for('boq_management') }}" class="erp-btn erp-btn-ghost"><i class="fa-solid fa-table-list"></i> BOQ Management</a>
+<a href="{{ url_for('revised_estimate', tab='create', project_id=filter_project) if filter_project else url_for('revised_estimate', tab='create') }}#revised-estimate-form" class="erp-btn erp-btn-primary"><i class="fa-solid fa-pen-ruler"></i> New Revision</a>
+{% endblock %}
+{% block content %}
+<div class="module-layout revised-estimate-module" data-revised-estimate-module>
+  <div class="re-tabs">
+    <a href="{{ url_for('revised_estimate', tab='register', project_id=filter_project) }}" class="erp-btn erp-btn-ghost re-tab-btn{% if active_tab == 'register' %} is-active{% endif %}">Register</a>
+    <a href="{{ url_for('revised_estimate', tab='create', project_id=filter_project) }}#revised-estimate-form" class="erp-btn erp-btn-ghost re-tab-btn{% if active_tab == 'create' %} is-active{% endif %}">Create Revision</a>
+  </div>
+
+  {% if view_estimate %}
+  <div class="erp-form-card" style="margin-bottom:1rem;">
+    <h3 class="erp-form-title">Revised Estimate #{{ view_estimate.revision_no }} — {{ view_estimate.title }}</h3>
+    <p><strong>Project:</strong> {{ view_estimate.project_code or view_estimate.project_id }} — {{ view_estimate.project_name or '—' }}</p>
+    <p><strong>BOQ:</strong> {{ view_estimate.boq_number or '—' }} · <strong>Date:</strong> {{ view_estimate.revision_date or '—' }} · <strong>Status:</strong> {{ view_estimate.status or 'Draft' }}</p>
+    <div class="erp-summary-grid" style="margin:0.75rem 0;">
+      <div class="erp-stat-card"><span>Original Total</span><strong>₹{{ '%.2f'|format(view_estimate.original_total or 0) }}</strong></div>
+      <div class="erp-stat-card"><span>Revised Total</span><strong>₹{{ '%.2f'|format(view_estimate.revised_total or 0) }}</strong></div>
+      <div class="erp-stat-card"><span>Delta</span><strong>₹{{ '%.2f'|format(view_estimate.delta_total or 0) }}</strong></div>
+    </div>
+    {% if view_estimate.remarks %}<p><strong>Remarks:</strong> {{ view_estimate.remarks }}</p>{% endif %}
+    <div class="workflow-row-actions" style="margin-top:0.75rem;">
+      <a href="{{ url_for('revised_estimate', tab='create', edit=view_estimate.id, project_id=filter_project) }}#revised-estimate-form" class="erp-btn erp-btn-primary erp-btn-sm">Edit</a>
+      <a href="{{ url_for('revised_estimate', tab='register', project_id=filter_project) }}" class="erp-btn erp-btn-ghost erp-btn-sm">Back to register</a>
+    </div>
+    <div class="erp-table-scroll" style="margin-top:1rem;">
+      <table class="erp-table erp-table-module revised-estimate-lines-table">
+        <thead>
+          <tr>
+            <th>Item</th><th>Description</th><th>Unit</th>
+            <th>Orig. Qty</th><th>Orig. Rate</th><th>Orig. Amount</th>
+            <th>New Qty</th><th>New Rate</th><th>New Total</th><th>Remarks</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in view_estimate.lines or [] %}
+          <tr>
+            <td>{{ line.item_code or ('New' if line.is_new_item else '—') }}</td>
+            <td>{{ line.item_description or '—' }}</td>
+            <td>{{ line.unit or '—' }}</td>
+            <td>{{ line.original_qty if not line.is_new_item else '—' }}</td>
+            <td>{{ line.original_rate if not line.is_new_item else '—' }}</td>
+            <td>₹{{ '%.2f'|format(line.original_amount or 0) }}</td>
+            <td>{{ line.revised_qty }}</td>
+            <td>{{ line.revised_rate }}</td>
+            <td>₹{{ '%.2f'|format(line.revised_amount or 0) }}</td>
+            <td>{{ line.remarks or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% elif active_tab == 'create' %}
+  <div class="erp-form-card" id="revised-estimate-form" style="margin-bottom:1rem;">
+    <h3 class="erp-form-title">{% if editing_estimate %}Edit Revised Estimate #{{ editing_estimate.revision_no }}{% else %}Create Revised Estimate{% endif %}</h3>
+    <form method="post" class="erp-form-grid" data-revised-estimate-form id="revised-estimate-save-form">
+      <input type="hidden" name="form_action" value="save_estimate">
+      <input type="hidden" name="project_id" id="re_project_id" value="{{ filter_project or '' }}">
+      {% if editing_estimate %}<input type="hidden" name="estimate_id" value="{{ editing_estimate.id }}">{% endif %}
+
+      <div class="erp-field">
+        <select id="re_project_name" class="has-value" data-re-project-name>
+          <option value="">— Select project name —</option>
+          {% for p in projects %}
+          <option value="{{ p.id }}" data-project-code="{{ p.project_code or p.id }}" {% if filter_project == p.id %}selected{% endif %}>{{ p.project_name }}</option>
+          {% endfor %}
+        </select>
+        <label>Project Name *</label>
+      </div>
+      <div class="erp-field">
+        <select id="re_project_code" class="has-value" data-re-project-code>
+          <option value="">— Select project number —</option>
+          {% for p in projects %}
+          <option value="{{ p.id }}" data-project-name="{{ p.project_name }}" {% if filter_project == p.id %}selected{% endif %}>{{ p.project_code or p.id }}</option>
+          {% endfor %}
+        </select>
+        <label>Project Number *</label>
+      </div>
+      <div class="erp-field">
+        <select name="boq_id" id="re_boq_select" class="has-value" data-re-boq-select {% if not filter_project %}disabled{% endif %}>
+          <option value="">— Select BOQ —</option>
+          {% if editing_estimate and editing_estimate.boq_id %}
+          <option value="{{ editing_estimate.boq_id }}" selected>{{ editing_estimate.boq_number or editing_estimate.boq_id }}</option>
+          {% endif %}
+        </select>
+        <label>BOQ Number *</label>
+      </div>
+      <div class="erp-field">
+        <input type="date" name="revision_date" required value="{{ editing_estimate.revision_date if editing_estimate else '' }}">
+        <label>Revision Date</label>
+      </div>
+      <div class="erp-field span-2">
+        <input type="text" name="title" placeholder="Revision title" value="{{ editing_estimate.title if editing_estimate else '' }}">
+        <label>Title</label>
+      </div>
+      <input type="hidden" name="status" value="{{ editing_estimate.status if editing_estimate else 'Draft' }}">
+      <div class="erp-field span-2">
+        <textarea name="remarks" rows="2" placeholder="Header remarks (optional)">{{ editing_estimate.remarks if editing_estimate else '' }}</textarea>
+        <label>Remarks</label>
+      </div>
+
+      <div class="span-2">
+        <h4 class="erp-form-subtitle">Line Items
+          <button type="button" class="erp-btn erp-btn-ghost erp-btn-sm" id="re-add-boq-line" disabled><i class="fa-solid fa-plus"></i> Add BOQ item</button>
+          <button type="button" class="erp-btn erp-btn-ghost erp-btn-sm" id="re-add-new-item"><i class="fa-solid fa-plus"></i> New item</button>
+        </h4>
+        <div class="erp-table-scroll">
+          <table class="erp-table erp-table-module revised-estimate-lines-table" id="re-lines-table">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Description</th>
+                <th>Unit</th>
+                <th class="re-orig-col">Orig. Qty</th>
+                <th class="re-orig-col">Orig. Rate</th>
+                <th class="re-orig-col">Orig. Amount</th>
+                <th>New Qty</th>
+                <th>New Rate</th>
+                <th>New Total</th>
+                <th>Remarks</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="re-lines-body">
+              {% if estimate_lines %}
+              {% for line in estimate_lines %}
+              <tr class="re-line-row{% if line.is_new_item %} re-line-new{% endif %}" data-re-line>
+                <td>
+                  {% if line.is_new_item %}
+                  <input type="hidden" name="line_boq_item_id" value="">
+                  <input type="hidden" name="line_is_new_item" value="1">
+                  <span class="re-new-badge">New</span>
+                  {% else %}
+                  <select name="line_item_pick" class="re-item-pick erp-input--sm" data-re-item-pick>
+                    <option value="{{ line.boq_item_id }}" selected>{{ line.item_code or 'Item' }}</option>
+                  </select>
+                  <input type="hidden" name="line_boq_item_id" value="{{ line.boq_item_id or '' }}">
+                  <input type="hidden" name="line_is_new_item" value="0">
+                  <input type="hidden" name="line_item_code" value="{{ line.item_code or '' }}">
+                  {% endif %}
+                </td>
+                <td>
+                  {% if line.is_new_item %}
+                  <input type="text" name="line_item_description" class="re-desc-input" value="{{ line.item_description or '' }}" placeholder="New item description">
+                  {% else %}
+                  <input type="hidden" name="line_item_description" value="{{ line.item_description or '' }}">
+                  <span class="re-desc-display">{{ line.item_description or '—' }}</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if line.is_new_item %}
+                  <select name="line_unit" class="re-unit-input">{% for u in boq_units %}<option value="{{ u }}" {% if line.unit == u %}selected{% endif %}>{{ u }}</option>{% endfor %}</select>
+                  {% else %}
+                  <input type="hidden" name="line_unit" value="{{ line.unit or '' }}">
+                  <span class="re-unit-display">{{ line.unit or '—' }}</span>
+                  {% endif %}
+                </td>
+                <td class="re-orig-col"><input type="number" step="0.0001" name="line_original_qty" class="erp-input--qty re-orig-qty" readonly value="{{ line.original_qty if not line.is_new_item else '' }}"></td>
+                <td class="re-orig-col"><input type="number" step="0.01" name="line_original_rate" class="erp-input--amount re-orig-rate" readonly value="{{ line.original_rate if not line.is_new_item else '' }}"></td>
+                <td class="re-orig-col"><span class="re-orig-amount">₹{{ '%.2f'|format(line.original_amount or 0) }}</span></td>
+                <td><input type="number" step="0.0001" min="0" name="line_revised_qty" class="erp-input--qty re-rev-qty" value="{{ line.revised_qty }}"></td>
+                <td><input type="number" step="0.01" min="0" name="line_revised_rate" class="erp-input--amount re-rev-rate" value="{{ line.revised_rate }}"></td>
+                <td><span class="re-rev-amount">₹{{ '%.2f'|format(line.revised_amount or 0) }}</span></td>
+                <td><input type="text" name="line_remarks" placeholder="Remarks" value="{{ line.remarks or '' }}"></td>
+                <td><button type="button" class="erp-btn erp-btn-ghost erp-btn-sm re-remove-line">&times;</button></td>
+              </tr>
+              {% endfor %}
+              {% else %}
+              <tr class="re-empty-row"><td colspan="11">Select project and BOQ to load items, or add a new item.</td></tr>
+              {% endif %}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="5" style="text-align:right;"><strong>Totals</strong></td>
+                <td><strong id="re-total-orig">₹0.00</strong></td>
+                <td colspan="2"></td>
+                <td><strong id="re-total-rev">₹0.00</strong></td>
+                <td colspan="2"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <div class="erp-form-actions span-2">
+        <button type="submit" class="erp-btn erp-btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Revised Estimate</button>
+        <a href="{{ url_for('revised_estimate', tab='register', project_id=filter_project) }}" class="erp-btn erp-btn-ghost">Cancel</a>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+  {% if active_tab == 'register' and not view_estimate %}
+  <div class="erp-form-card" style="margin-bottom:1rem;">
+    <h3 class="erp-form-title">Filter</h3>
+    <form method="get" class="erp-form-grid">
+      <input type="hidden" name="tab" value="register">
+      <div class="erp-field span-2">
+        <select name="project_id" class="has-value" onchange="this.form.submit()">
+          <option value="">All projects</option>
+          {% for p in projects %}
+          <option value="{{ p.id }}"{% if filter_project == p.id %} selected{% endif %}>{{ p.project_code or p.id }} — {{ p.project_name }}</option>
+          {% endfor %}
+        </select>
+        <label>Project</label>
+      </div>
+    </form>
+  </div>
+
+  <div class="erp-form-card">
+    <h3 class="erp-form-title">Revised Estimate Register</h3>
+    <div class="erp-table-scroll">
+      <table class="erp-table erp-table-module">
+        <thead>
+          <tr>
+            <th>Rev #</th>
+            <th>Date</th>
+            <th>Project</th>
+            <th>BOQ</th>
+            <th>Title</th>
+            <th>Original</th>
+            <th>Revised</th>
+            <th>Delta</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in estimates %}
+          <tr>
+            <td>{{ row.revision_no }}</td>
+            <td>{{ row.revision_date or '—' }}</td>
+            <td>{{ row.project_code or row.project_id }}</td>
+            <td>{{ row.boq_number or '—' }}</td>
+            <td>{{ row.title or '—' }}</td>
+            <td>₹{{ '%.2f'|format(row.original_total or 0) }}</td>
+            <td>₹{{ '%.2f'|format(row.revised_total or 0) }}</td>
+            <td>₹{{ '%.2f'|format(row.delta_total or 0) }}</td>
+            <td>{{ row.status or 'Draft' }}</td>
+            <td>
+              <a href="{{ url_for('revised_estimate', view=row.id, project_id=row.project_id) }}" class="erp-btn erp-btn-ghost erp-btn-sm">View</a>
+              <a href="{{ url_for('revised_estimate', tab='create', edit=row.id, project_id=row.project_id) }}#revised-estimate-form" class="erp-btn erp-btn-ghost erp-btn-sm">Edit</a>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="10">No revised estimates yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+window.REVISED_ESTIMATE_BOOT = {
+  projectId: {{ filter_project or 'null' }},
+  boqId: {{ (editing_estimate.boq_id if editing_estimate else none) or 'null' }},
+  units: {{ boq_units|tojson }}
+};
+</script>
+<script src="{{ url_for('static', filename='js/revised-estimate.js') }}?v=20260708-re"></script>
+{% endblock %}
