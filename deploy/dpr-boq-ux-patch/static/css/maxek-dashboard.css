@@ -427,6 +427,7 @@
 
 .maxek-layout .top-utility-strip {
   min-height: var(--layout-toolbar-height);
+  height: var(--layout-toolbar-height);
   background-color: var(--maxek-header-bg);
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
