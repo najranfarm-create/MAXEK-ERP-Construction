@@ -3654,6 +3654,19 @@ def _petty_cash_timestamp():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _safe_int(value, default=None):
+    """Parse optional integer values without raising on empty strings."""
+    if value is None:
+        return default
+    text = str(value).strip()
+    if not text:
+        return default
+    try:
+        return int(text)
+    except (ValueError, TypeError):
+        return default
+
+
 def generate_petty_cash_request_number(db):
     year = datetime.now().strftime("%Y")
     prefix = f"PCR-{year}-"
@@ -3855,8 +3868,8 @@ def _parse_petty_cash_request_form():
         required_amount = str(line_total) if line_total > 0 else required_amount
     return {
         "request_date": request.form.get("request_date", "").strip(),
-        "project_id": request.form.get("project_id") or None,
-        "staff_id": request.form.get("staff_id") or None,
+        "project_id": _safe_int(request.form.get("project_id")),
+        "staff_id": _safe_int(request.form.get("staff_id")),
         "staff_name": request.form.get("staff_name", "").strip(),
         "employee_code": request.form.get("employee_code", "").strip(),
         "department": request.form.get("department", "").strip(),
@@ -13787,7 +13800,7 @@ def petty_cash():
 
     if request.method == "POST":
         form_action = request.form.get("form_action", "save_draft").strip()
-        request_id = request.form.get("request_id", "").strip()
+        request_id = _safe_int(request.form.get("request_id"))
 
         if form_action == "delete_request":
             if not request_id:
@@ -13856,10 +13869,10 @@ def petty_cash():
                         (module_id, request_id, record_table),
                     ).fetchone()
                     if existing_req:
-                        resubmit_record(db, module_id, int(request_id), record_table, user_id)
+                        resubmit_record(db, module_id, request_id, record_table, user_id)
                     else:
                         create_approval_request(
-                            db, module_id, int(request_id), record_table, username, user_id,
+                            db, module_id, request_id, record_table, username, user_id,
                         )
                     flash("Request submitted for approval.")
                 else:
@@ -14147,7 +14160,7 @@ def petty_cash():
             return redirect(url_for("petty_cash", view=request_id))
 
     filter_status = request.args.get("status", "").strip()
-    filter_project = request.args.get("project_id", "").strip()
+    filter_project = _safe_int(request.args.get("project_id"))
     filter_q = request.args.get("q", "").strip()
     filter_date_from = request.args.get("date_from", "").strip()
     filter_date_to = request.args.get("date_to", "").strip()
@@ -14194,12 +14207,12 @@ def petty_cash():
         "SELECT department_name FROM departments WHERE status='Active' ORDER BY department_name"
     )
 
-    view_id = request.args.get("view")
-    edit_id = request.args.get("edit")
+    view_id = _safe_int(request.args.get("view"))
+    edit_id = _safe_int(request.args.get("edit"))
     show_new = request.args.get("new")
-    transfer_id = request.args.get("transfer")
-    expenses_id = request.args.get("expenses")
-    settle_id = request.args.get("settle")
+    transfer_id = _safe_int(request.args.get("transfer"))
+    expenses_id = _safe_int(request.args.get("expenses"))
+    settle_id = _safe_int(request.args.get("settle"))
 
     view_record = edit_record = transfer_record = expenses_record = settle_record = None
     expenses = transfers = attachments = []
@@ -20849,14 +20862,16 @@ def accounts_expenses():
     edit_id = request.args.get("edit")
     view_record = edit_record = None
     wf_ctx = {}
-    if view_id:
-        view_record = load_account_expense(db, int(view_id))
+    view_id_int = _safe_int(view_id)
+    edit_id_int = _safe_int(edit_id)
+    if view_id_int:
+        view_record = load_account_expense(db, view_id_int)
         if view_record:
             wf_ctx = _workflow_view_context(
                 module_id, view_record["id"], table, view_record["approval_status"]
             )
-    elif edit_id:
-        edit_record = load_account_expense(db, int(edit_id))
+    elif edit_id_int:
+        edit_record = load_account_expense(db, edit_id_int)
         if edit_record:
             edit_role = get_edit_role_for_user(
                 db, session.get("user_id"), module_id,
@@ -20864,14 +20879,14 @@ def accounts_expenses():
             )
             if not edit_role:
                 flash("This record is locked and cannot be edited.")
-                return redirect(url_for(endpoint, view=edit_id))
+                return redirect(url_for(endpoint, view=edit_id_int))
             wf_ctx = {"edit_role": edit_role}
     show_form = bool(request.args.get("new")) or edit_record or view_record
     rows = list_account_expenses(db)
     chart_heads = list_expense_chart_heads(db)
     _prepare_store_db(db)
     vendors = list_vendors(db, active_only=True)
-    select_vendor = request.args.get("select_vendor", type=int)
+    select_vendor = _safe_int(request.args.get("select_vendor"))
     return render_template(
         "accounts_expenses.html",
         rows=rows,
@@ -20892,8 +20907,8 @@ def accounts_expenses():
         gst_rates=GST_RATES,
         tds_sections=TDS_SECTIONS,
         default_date=datetime.now().strftime("%Y-%m-%d"),
-        prefill_head=request.args.get("head_id", type=int),
-        select_chart_head=request.args.get("select_chart_head", type=int),
+        prefill_head=_safe_int(request.args.get("head_id")),
+        select_chart_head=_safe_int(request.args.get("select_chart_head")),
         select_vendor=select_vendor,
         account_types=ACCOUNT_TYPES,
         next_vendor_code=generate_vendor_code(db),

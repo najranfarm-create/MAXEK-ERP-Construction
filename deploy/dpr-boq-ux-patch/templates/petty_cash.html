@@ -47,7 +47,7 @@
       <select class="erp-input erp-input--sm" name="filter_project" data-erp-filter="project" aria-label="Filter by project">
         <option value="">All projects</option>
         {% for p in projects %}
-        <option value="{{ p.id }}"{% if filter_project|string == p.id|string %} selected{% endif %}>{{ p.project_name }}</option>
+        <option value="{{ p.id }}"{% if filter_project == p.id %} selected{% endif %}>{{ p.project_name }}</option>
         {% endfor %}
       </select>
       <input type="search" class="erp-input erp-input--sm" placeholder="Search requests…" data-table-search data-table-target="#petty-register" value="{{ filter_q }}" aria-label="Search petty cash register">
@@ -194,7 +194,7 @@
           </div>
 
           <div class="erp-field erp-field--select-wide">
-            <select id="petty-staff" required data-petty-staff{% if is_readonly %} disabled{% endif %}>
+            <select name="staff_id" id="petty-staff" required data-petty-staff{% if is_readonly %} disabled{% endif %}>
               <option value="">Select Staff</option>
               {% for s in staff_list %}
               <option value="{{ s.id }}"

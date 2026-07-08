@@ -27,14 +27,25 @@ fi
 # Locate patch files: from cloned repo, or same directory as this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PATCH_ROOT="${SCRIPT_DIR}/dpr-boq-ux-patch"
+REPO_ROOT="$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel 2>/dev/null || true)"
+
+# When run from an existing clone (e.g. /tmp/maxek-patch), pull the requested branch.
+if [[ -n "${REPO_ROOT}" ]] && [[ -d "${REPO_ROOT}/.git" ]]; then
+  echo "==> Refreshing git repo at ${REPO_ROOT} (branch: ${BRANCH})"
+  git -C "${REPO_ROOT}" fetch origin "${BRANCH}" --depth 1 2>/dev/null || \
+    git -C "${REPO_ROOT}" fetch origin "${BRANCH}" 2>/dev/null || true
+  git -C "${REPO_ROOT}" checkout "${BRANCH}" 2>/dev/null || true
+  git -C "${REPO_ROOT}" reset --hard "origin/${BRANCH}" 2>/dev/null || \
+    git -C "${REPO_ROOT}" pull --ff-only origin "${BRANCH}" 2>/dev/null || true
+  PATCH_ROOT="${REPO_ROOT}/deploy/dpr-boq-ux-patch"
+fi
 
 if [[ ! -f "${PATCH_ROOT}/static/css/maxek-dashboard.css" ]]; then
   echo "==> Cloning patch repo to ${STAGING}"
-  if [[ "${STAGING}" == "/tmp/maxek-patch" ]] && [[ -d "${STAGING}" ]]; then
+  if [[ -d "${STAGING}" ]]; then
     echo "    Removing stale ${STAGING}"
     rm -rf "${STAGING}"
   fi
-  rm -rf "${STAGING}"
   if ! git clone --depth 1 --branch "${BRANCH}" "${REPO_URL}" "${STAGING}"; then
     echo "ERROR: git clone failed (rate limit?). Try again in a few minutes or copy files manually."
     exit 1
