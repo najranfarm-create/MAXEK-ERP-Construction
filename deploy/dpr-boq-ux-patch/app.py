@@ -18664,7 +18664,14 @@ def _insert_boq_lines(db, boq_id, project_id, lines, actor, now_ts=None):
 @app.route("/settings/boq-management", methods=["GET", "POST"])
 @login_required
 def boq_management():
-    from document_management_service import attach_document, list_module_documents
+    try:
+        from document_management_service import attach_document, list_module_documents
+    except ImportError:
+        def list_module_documents(db, module_key, record_id):  # noqa: ARG001
+            return []
+
+        def attach_document(*args, **kwargs):  # noqa: ARG001
+            raise ValueError("Document Management module is not installed on this server.")
 
     db = get_db()
     _prepare_boq_management_db(db)
@@ -18824,6 +18831,14 @@ def boq_management():
         audit_trail=list_boq_audit_trail(db, boq_id) if boq_id else [],
         module_documents=module_documents,
     )
+
+
+@app.route("/boq-library", methods=["GET"])
+@app.route("/settings/boq-library", methods=["GET"])
+@login_required
+def boq_library():
+    """Standard BOQ library / templates (legacy UI until dedicated library screen ships)."""
+    return redirect(url_for("boq_legacy"))
 
 
 @app.route("/boq-legacy", methods=["GET", "POST"])
