@@ -33,6 +33,24 @@ def _float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def _row_dict(row: Any) -> dict[str, Any]:
+    """Normalize sqlite3.Row / mapping rows to a real dict (Row has no .get())."""
+    if row is None:
+        return {}
+    if isinstance(row, dict):
+        return row
+    if hasattr(row, "keys"):
+        return dict(row)
+    return {}
+
+
+def _field(row: dict[str, Any], *keys: str, default: Any = "") -> Any:
+    for key in keys:
+        if key in row and row[key] is not None:
+            return row[key]
+    return default
+
+
 def ensure_revised_estimate_tables(db) -> None:
     db.execute(
         """
@@ -152,22 +170,46 @@ def load_boq_lines_for_project(db, project_id: int, boq_id: int | None = None) -
         items = get_boq_items_for_project(db, project_id, boq_id=boq_id)
         return _items_to_estimate_lines(items)
     except Exception:
-        return []
+        return _items_to_estimate_lines(_load_boq_lines_fallback(db, project_id, boq_id))
 
 
-def _items_to_estimate_lines(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _load_boq_lines_fallback(
+    db, project_id: int, boq_id: int | None = None
+) -> list[dict[str, Any]]:
+    """Load BOQ lines when boq_management_service is unavailable or returns raw rows."""
+    clauses = ["COALESCE(bi.is_deleted, 0)=0", "COALESCE(bi.project_id, bm.project_id)=?"]
+    params: list[Any] = [project_id]
+    if boq_id:
+        clauses.append("bi.boq_id=?")
+        params.append(boq_id)
+    where = " AND ".join(clauses)
+    rows = db.execute(
+        f"""
+        SELECT bi.*
+        FROM boq_items bi
+        LEFT JOIN boq_master bm ON bm.id = bi.boq_id
+        WHERE {where}
+        ORDER BY COALESCE(bi.line_no, bi.id), bi.id
+        """,
+        params,
+    ).fetchall()
+    return [_row_dict(r) for r in rows]
+
+
+def _items_to_estimate_lines(items: list[Any]) -> list[dict[str, Any]]:
     lines = []
-    for item in items:
-        qty = _float(item.get("quantity"))
-        rate = _float(item.get("rate"))
-        amount = _float(item.get("amount")) or round(qty * rate, 2)
+    for raw in items:
+        item = _row_dict(raw)
+        qty = _float(_field(item, "quantity"))
+        rate = _float(_field(item, "rate"))
+        amount = _float(_field(item, "amount", default=0)) or round(qty * rate, 2)
         lines.append(
             {
-                "boq_item_id": item.get("id"),
+                "boq_item_id": _field(item, "id", default=None),
                 "is_new_item": 0,
-                "item_code": item.get("item_code") or item.get("item_number") or "",
-                "item_description": item.get("item_description") or item.get("description") or "",
-                "unit": item.get("unit") or "",
+                "item_code": _field(item, "item_code", "item_number") or "",
+                "item_description": _field(item, "item_description", "description") or "",
+                "unit": _field(item, "unit") or "",
                 "original_qty": qty,
                 "original_rate": rate,
                 "original_amount": amount,
