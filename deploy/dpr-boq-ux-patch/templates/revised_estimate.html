@@ -7,6 +7,7 @@
 {% endblock %}
 {% block content %}
 {% set active_tab = active_tab|default('register') %}
+{% set boq_units = boq_units|default(['Nos', 'Sqm', 'Sqft', 'Rmt', 'Kg', 'MT', 'Ltr', 'Cum', 'Hour', 'Day', 'LS', 'Set', 'Bag']) %}
 <div class="module-layout revised-estimate-module" data-revised-estimate-module>
   <div class="re-tabs">
     <a href="{{ url_for('revised_estimate', tab='register', project_id=filter_project) }}" class="erp-btn erp-btn-ghost re-tab-btn{% if active_tab == 'register' %} is-active{% endif %}">Register</a>

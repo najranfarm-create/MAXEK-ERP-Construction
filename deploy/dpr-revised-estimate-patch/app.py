@@ -22412,6 +22412,8 @@ def revised_estimate():
         estimate_lines=estimate_lines,
         view_estimate=view_estimate,
         editing_estimate=editing_estimate,
+        active_tab="register",
+        boq_units=BOQ_UNITS,
     )
 
 
