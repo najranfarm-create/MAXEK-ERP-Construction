@@ -70,10 +70,12 @@ UI_FILES=(
   static/js/maxek-ui.js
   static/js/dpr-forms.js
   static/js/accounts-expenses.js
+  static/js/petty-cash.js
   templates/base_maxek.html
   templates/dpr.html
   templates/revised_estimate.html
   templates/accounts_expenses.html
+  templates/petty_cash.html
 )
 
 WORKFLOW_FILES=(
@@ -136,7 +138,7 @@ if [[ "${STATUS}" != "active" ]]; then
   exit 1
 fi
 
-for path in /login /revised-estimate /toc-extension /project-completion /dpr_entry; do
+for path in /login /revised-estimate /toc-extension /project-completion /dpr_entry /petty_cash; do
   code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8000${path}" 2>/dev/null || echo 000)"
   echo "==> HTTP ${path} => ${code}"
 done

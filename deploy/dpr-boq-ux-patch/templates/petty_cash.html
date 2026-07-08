@@ -1,0 +1,312 @@
+{% extends 'base_maxek.html' %}
+{% set page_title = 'Petty Cash Request' %}
+{% set breadcrumbs = '<a href="' ~ url_for('dashboard') ~ '">Home</a> &gt; <a href="' ~ url_for('accounts_hub') ~ '">Accounts</a> &gt; Petty Cash' %}
+{% set rec = edit_record or view_record %}
+{% set is_view = view_record and not edit_record %}
+{% set is_readonly = is_view %}
+{% set show_form = show_new or edit_record or view_record %}
+
+{% block head_extra %}
+<script src="{{ url_for('static', filename='js/petty-cash.js') }}?v=20260708-pc" defer></script>
+{% endblock %}
+
+{% block content %}
+<div class="module-layout erp-module-layout petty-cash-module module-layout--entry-focus{% if not show_form %} module-layout--list-only{% endif %}{% if show_form %} module-layout--entry-form-open{% endif %}" data-petty-cash-module>
+
+  {# ── Listing toolbar: Open/View/Edit/Delete hidden when entry form is open ── #}
+  <div class="erp-sub-toolbar erp-petty-list-toolbar" data-erp-standard-toolbar
+       data-form-panel="petty-request-form"
+       data-table-panel="petty-register"
+       data-new-url="{{ url_for('petty_cash', new=1) }}#petty-request-form"
+       data-add-trigger="[data-petty-new-trigger]"
+       data-allow-delete="true"
+       data-delete-form="petty-delete-form"
+       data-delete-confirm="Delete this petty cash request? This cannot be undone."
+       data-erp-print-target="#petty-register">
+    <div class="erp-sub-toolbar-primary">
+      <button type="button" class="erp-btn erp-btn-primary" data-erp-action="new"><i class="fa-solid fa-plus"></i> New Request</button>
+      <button type="button" class="erp-btn erp-btn-ghost" data-petty-toolbar-save="draft"{% if not show_form or is_view %} disabled{% endif %}><i class="fa-solid fa-floppy-disk"></i> Save Draft</button>
+      <button type="button" class="erp-btn erp-btn-success" data-petty-toolbar-save="submit"{% if not show_form or is_view %} disabled{% endif %}><i class="fa-solid fa-paper-plane"></i> Submit Request</button>
+      <button type="button" class="erp-btn erp-btn-ghost" data-erp-action="refresh"><i class="fa-solid fa-rotate"></i> Refresh</button>
+      <button type="button" class="erp-btn erp-btn-ghost" data-erp-export="excel" data-export-table="petty-register"><i class="fa-solid fa-file-excel"></i> Export Excel</button>
+      <button type="button" class="erp-btn erp-btn-ghost" data-erp-export-pdf data-erp-print-target="#petty-register"><i class="fa-solid fa-file-pdf"></i> Export PDF</button>
+      <button type="button" class="erp-btn erp-btn-ghost" data-erp-print data-erp-print-target="#petty-register"><i class="fa-solid fa-print"></i> Print</button>
+      <span class="erp-sub-toolbar-divider" data-hide-on-entry-open></span>
+      <button type="button" class="erp-btn erp-btn-ghost erp-btn-sm" data-erp-action="open" data-hide-on-entry-open disabled><i class="fa-solid fa-folder-open"></i> Open</button>
+      <button type="button" class="erp-btn erp-btn-ghost erp-btn-sm" data-erp-action="view" data-hide-on-entry-open disabled><i class="fa-solid fa-eye"></i> View</button>
+      <button type="button" class="erp-btn erp-btn-ghost erp-btn-sm" data-erp-action="edit" data-hide-on-entry-open disabled><i class="fa-solid fa-pen"></i> Edit</button>
+      <button type="button" class="erp-btn erp-btn-ghost erp-btn-sm erp-btn-danger" data-erp-action="delete" data-hide-on-entry-open disabled><i class="fa-solid fa-trash"></i> Delete</button>
+    </div>
+    <div class="erp-sub-toolbar-filters" data-hide-on-entry-open>
+      <select class="erp-input erp-input--sm" data-erp-filter="status" aria-label="Filter by status">
+        <option value="">All statuses</option>
+        {% for s in petty_cash_statuses %}
+        <option value="{{ s }}"{% if filter_status == s %} selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+      <select class="erp-input erp-input--sm" name="filter_project" data-erp-filter="project" aria-label="Filter by project">
+        <option value="">All projects</option>
+        {% for p in projects %}
+        <option value="{{ p.id }}"{% if filter_project|string == p.id|string %} selected{% endif %}>{{ p.project_name }}</option>
+        {% endfor %}
+      </select>
+      <input type="search" class="erp-input erp-input--sm" placeholder="Search requests…" data-table-search data-table-target="#petty-register" value="{{ filter_q }}" aria-label="Search petty cash register">
+    </div>
+  </div>
+
+  {# ── KPI summary cards ── #}
+  <div class="petty-cash-kpi-row" data-hide-on-entry-open>
+    <div class="erp-stat-card petty-kpi-card">
+      <span class="petty-kpi-label">Current Balance</span>
+      <strong>{{ '%.2f'|format(petty_summary.current_balance or 0) }}</strong>
+    </div>
+    <div class="erp-stat-card petty-kpi-card">
+      <span class="petty-kpi-label">Amount Received</span>
+      <strong>{{ '%.2f'|format(petty_summary.amount_received or 0) }}</strong>
+    </div>
+    <div class="erp-stat-card petty-kpi-card">
+      <span class="petty-kpi-label">Total Expenses</span>
+      <strong>{{ '%.2f'|format(petty_summary.total_expenses or 0) }}</strong>
+    </div>
+    <div class="erp-stat-card petty-kpi-card">
+      <span class="petty-kpi-label">Pending Settlement</span>
+      <strong>{{ petty_summary.pending_settlement or 0 }}</strong>
+    </div>
+  </div>
+
+  {# ── Register table ── #}
+  <div class="erp-table-panel erp-module-table-panel" id="petty-register" data-erp-table data-hide-on-entry-open>
+    <div class="erp-table-toolbar">
+      <h3 class="erp-table-title">Petty Cash Register ({{ rows|length }})</h3>
+    </div>
+    <div class="erp-table-scroll">
+      <table class="erp-table erp-table-module" id="petty-register-table">
+        <thead>
+          <tr>
+            <th>Request No.</th>
+            <th>Date</th>
+            <th>Staff</th>
+            <th>Project</th>
+            <th>Purpose</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th>Approval</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr class="erp-selectable-row" tabindex="0"
+              data-record-id="{{ row.id }}"
+              data-status="{{ row.status or '' }}"
+              data-project="{{ row.project_id or '' }}"
+              data-edit-url="{{ url_for('petty_cash', edit=row.id) }}#petty-request-form"
+              data-view-url="{{ url_for('petty_cash', view=row.id) }}#petty-request-form"
+              data-open-url="{{ url_for('petty_cash', edit=row.id) }}#petty-request-form">
+            <td>{{ row.request_number or row.id }}</td>
+            <td>{{ row.request_date or '—' }}</td>
+            <td>{{ row.staff_name or '—' }}</td>
+            <td>{{ row.project_name or '—' }}</td>
+            <td>{{ (row.purpose or '—')[:48] }}{% if row.purpose and row.purpose|length > 48 %}…{% endif %}</td>
+            <td>{{ '%.2f'|format(row.required_amount or 0) }}</td>
+            <td>{{ row.status or '—' }}</td>
+            <td>{{ row.approval_status or '—' }}</td>
+            <td>
+              <button type="button" class="erp-btn erp-btn-ghost erp-btn-sm js-delete-record" hidden
+                      data-delete-id="{{ row.id }}">Delete</button>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="9">No petty cash requests yet. Click <strong>New Request</strong> to create one.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <form id="petty-delete-form" method="post" action="{{ url_for('petty_cash') }}" hidden>
+    <input type="hidden" name="form_action" value="delete_request">
+    <input type="hidden" name="request_id" value="">
+  </form>
+
+  <button type="button" class="sr-only" data-petty-new-trigger hidden aria-hidden="true"></button>
+
+  {# ── Entry form (compact 2-column) ── #}
+  <section class="erp-module-form-panel erp-form-card erp-data-entry-panel erp-data-entry-panel--wide petty-cash-entry-panel"
+           id="petty-request-form" data-entry-panel data-entry-list="petty-register"
+           data-entry-back-href="{{ url_for('petty_cash') }}"
+           {% if not show_form %}hidden{% endif %}
+           data-record-id="{{ rec.id if rec else '' }}"
+           data-next-number="{{ next_request_number }}">
+
+    <div class="erp-data-entry-header" role="toolbar" aria-label="Entry navigation">
+      <div class="erp-data-entry-header__title">
+        <button type="button" class="erp-data-entry-nav erp-data-entry-nav--back" data-entry-back aria-label="Back to list"><i class="fa-solid fa-arrow-left"></i></button>
+        <h3 class="erp-form-title">
+          {% if is_view %}View Petty Cash Request{% elif edit_record %}Edit Request {{ edit_record.request_number or edit_record.id }}{% else %}New Petty Cash Request{% endif %}
+        </h3>
+        {% if not rec %}
+        <span class="petty-request-number-badge">{{ next_request_number }}</span>
+        {% elif rec.request_number %}
+        <span class="petty-request-number-badge">{{ rec.request_number }}</span>
+        {% endif %}
+      </div>
+      <button type="button" class="erp-data-entry-nav erp-data-entry-nav--close" data-entry-close aria-label="Close entry"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    {% if rec and workflow_steps %}
+    <div class="petty-workflow-strip" aria-label="Workflow progress">
+      {% for step in workflow_steps %}
+      <span class="petty-workflow-step{% if loop.index0 <= workflow_active_index %} is-done{% endif %}{% if loop.index0 == workflow_active_index %} is-active{% endif %}">{{ step }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" class="petty-cash-entry-form" data-petty-form id="petty-entry-form"{% if is_readonly %} data-readonly="1"{% endif %}>
+      {% if edit_record %}<input type="hidden" name="request_id" value="{{ edit_record.id }}">{% endif %}
+      <input type="hidden" name="form_action" value="save_draft" data-petty-form-action>
+      <input type="hidden" name="purpose" value="{{ rec.purpose if rec else '' }}" data-petty-purpose-hidden>
+      <input type="hidden" name="required_amount" value="{{ rec.required_amount if rec else '0' }}" data-petty-amount-hidden>
+      <input type="hidden" name="staff_name" value="{{ rec.staff_name if rec else '' }}" data-petty-staff-name-hidden>
+      <input type="hidden" name="staff_id" value="{{ rec.staff_id if rec else '' }}" data-petty-staff-id-hidden>
+
+      <div class="petty-form-columns">
+        <div class="petty-form-col petty-form-col--left">
+          <div class="erp-field">
+            <input type="date" name="request_date" id="petty-request-date" required
+                   value="{{ rec.request_date if rec else '' }}" data-petty-request-date{% if is_readonly %} readonly{% endif %}>
+            <label>Request Date <span class="req">*</span></label>
+          </div>
+
+          <div class="erp-field erp-field--select-wide">
+            <select name="project_id" id="petty-project" required data-petty-project{% if is_readonly %} disabled{% endif %}>
+              <option value="">Select Project</option>
+              {% for p in projects %}
+              <option value="{{ p.id }}"
+                data-code="{{ p.project_code or '' }}"
+                data-name="{{ p.project_name }}"
+                {% if rec and rec.project_id == p.id %}selected{% endif %}>
+                {{ p.project_name }}
+              </option>
+              {% endfor %}
+            </select>
+            <label>Project Name <span class="req">*</span></label>
+          </div>
+
+          <div class="erp-field erp-field--select-wide">
+            <select id="petty-staff" required data-petty-staff{% if is_readonly %} disabled{% endif %}>
+              <option value="">Select Staff</option>
+              {% for s in staff_list %}
+              <option value="{{ s.id }}"
+                data-name="{{ s.staff_name }}"
+                data-code="{{ s.employee_code or '' }}"
+                data-dept="{{ s.department or '' }}"
+                {% if rec and rec.staff_id == s.id %}selected{% endif %}>
+                {{ s.staff_name }}{% if s.employee_code %} ({{ s.employee_code }}){% endif %}
+              </option>
+              {% endfor %}
+            </select>
+            <label>Staff Name <span class="req">*</span></label>
+          </div>
+
+          <div class="erp-field">
+            <input type="text" name="department" id="petty-department" readonly
+                   value="{{ rec.department if rec else '' }}" data-petty-department placeholder="Auto from staff">
+            <label>Department</label>
+          </div>
+
+          <div class="erp-field">
+            <select name="priority" id="petty-priority"{% if is_readonly %} disabled{% endif %}>
+              {% set pr = rec.priority if rec else 'Normal' %}
+              <option value="Low"{% if pr == 'Low' %} selected{% endif %}>Low</option>
+              <option value="Normal"{% if pr == 'Normal' %} selected{% endif %}>Normal</option>
+              <option value="High"{% if pr == 'High' %} selected{% endif %}>High</option>
+              <option value="Urgent"{% if pr == 'Urgent' %} selected{% endif %}>Urgent</option>
+            </select>
+            <label>Priority</label>
+          </div>
+        </div>
+
+        <div class="petty-form-col petty-form-col--right">
+          <div class="erp-field">
+            <input type="text" id="petty-project-id" readonly
+                   value="{% if rec %}{{ rec.project_code or rec.project_id or '' }}{% endif %}"
+                   data-petty-project-id placeholder="Auto from project">
+            <label>Project ID</label>
+          </div>
+
+          <div class="erp-field">
+            <input type="text" name="employee_code" id="petty-employee-id" readonly
+                   value="{{ rec.employee_code if rec else '' }}" data-petty-employee-id placeholder="Auto from staff">
+            <label>Employee ID</label>
+          </div>
+
+          <div class="petty-purpose-block">
+            <div class="petty-purpose-head">
+              <h4 class="erp-form-subtitle">Purpose &amp; Amount <span class="req">*</span></h4>
+              {% if not is_readonly %}
+              <button type="button" class="erp-btn erp-btn-ghost erp-btn-sm" data-petty-add-line><i class="fa-solid fa-plus"></i> Add Row</button>
+              {% endif %}
+            </div>
+            <div class="petty-purpose-table-wrap">
+              <table class="erp-table petty-purpose-table" data-petty-purpose-table>
+                <thead>
+                  <tr>
+                    <th class="col-sl">Sl No</th>
+                    <th>Purpose</th>
+                    <th class="col-amount">Amount</th>
+                    <th class="col-action">Action</th>
+                  </tr>
+                </thead>
+                <tbody data-petty-purpose-body>
+                  {# Lines populated by JS from existing purpose or one empty row #}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colspan="2" class="petty-total-label">Total Amount</td>
+                    <td class="petty-total-cell">
+                      <input type="text" id="petty-total-amount" readonly class="petty-total-input" data-petty-total value="0.00">
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="petty-form-bottom">
+        <div class="erp-field span-2">
+          <textarea name="remarks" id="petty-remarks" rows="2" placeholder="Remarks"{% if is_readonly %} readonly{% endif %}>{{ rec.remarks if rec else '' }}</textarea>
+          <label>Remarks</label>
+        </div>
+
+        <div class="erp-field span-2 petty-attachment-field">
+          <div class="petty-dropzone" data-petty-dropzone{% if is_readonly %} data-readonly="1"{% endif %}>
+            <input type="file" name="attachment" id="petty-attachment" accept=".pdf,.jpg,.jpeg,.png" data-petty-file{% if is_readonly %} disabled{% endif %}>
+            <div class="petty-dropzone-ui">
+              <i class="fa-solid fa-cloud-arrow-up"></i>
+              <span>Drag &amp; drop or click — PDF, JPG, PNG (max 10MB)</span>
+            </div>
+          </div>
+          <label>Attachment</label>
+        </div>
+
+        {% if not is_readonly %}
+        <div class="petty-form-actions">
+          <button type="button" class="erp-btn erp-btn-ghost" data-petty-save="draft"><i class="fa-solid fa-floppy-disk"></i> Save Draft</button>
+          <button type="button" class="erp-btn erp-btn-success" data-petty-save="submit"><i class="fa-solid fa-paper-plane"></i> Submit Request</button>
+        </div>
+        {% endif %}
+      </div>
+    </form>
+  </section>
+
+  {# Seed purpose lines for edit/view #}
+  {% if rec and rec.purpose %}
+  <script type="application/json" id="petty-purpose-seed">{{ {'purpose': rec.purpose, 'amount': rec.required_amount or 0}|tojson }}</script>
+  {% endif %}
+
+</div>
+{% endblock %}

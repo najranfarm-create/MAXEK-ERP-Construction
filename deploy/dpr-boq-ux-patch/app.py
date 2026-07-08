@@ -3827,7 +3827,32 @@ def _petty_cash_can_delete_request(request_row):
     return False
 
 
+def _parse_petty_cash_purpose_lines():
+    """Aggregate purpose/amount table rows into purpose text and total amount."""
+    purpose_lines = request.form.getlist("purpose_line[]")
+    amount_lines = request.form.getlist("amount_line[]")
+    purposes = []
+    total = 0.0
+    for idx, raw_purpose in enumerate(purpose_lines):
+        purpose = (raw_purpose or "").strip()
+        raw_amount = amount_lines[idx] if idx < len(amount_lines) else "0"
+        try:
+            amount = float((raw_amount or "0").strip() or 0)
+        except ValueError:
+            amount = 0.0
+        if purpose or amount > 0:
+            purposes.append(purpose)
+            total += amount
+    return purposes, total
+
+
 def _parse_petty_cash_request_form():
+    purposes, line_total = _parse_petty_cash_purpose_lines()
+    purpose = request.form.get("purpose", "").strip()
+    required_amount = request.form.get("required_amount", "0").strip()
+    if purposes:
+        purpose = "; ".join(p for p in purposes if p) or purpose
+        required_amount = str(line_total) if line_total > 0 else required_amount
     return {
         "request_date": request.form.get("request_date", "").strip(),
         "project_id": request.form.get("project_id") or None,
@@ -3835,9 +3860,9 @@ def _parse_petty_cash_request_form():
         "staff_name": request.form.get("staff_name", "").strip(),
         "employee_code": request.form.get("employee_code", "").strip(),
         "department": request.form.get("department", "").strip(),
-        "purpose": request.form.get("purpose", "").strip(),
+        "purpose": purpose,
         "description": request.form.get("description", "").strip(),
-        "required_amount": request.form.get("required_amount", "0").strip(),
+        "required_amount": required_amount,
         "priority": request.form.get("priority", "Normal").strip() or "Normal",
         "remarks": request.form.get("remarks", "").strip(),
     }
