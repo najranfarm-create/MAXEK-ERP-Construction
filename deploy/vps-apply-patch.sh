@@ -27,14 +27,25 @@ fi
 # Locate patch files: from cloned repo, or same directory as this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PATCH_ROOT="${SCRIPT_DIR}/dpr-boq-ux-patch"
+REPO_ROOT="$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel 2>/dev/null || true)"
+
+# When run from an existing clone (e.g. /tmp/maxek-patch), pull the requested branch.
+if [[ -n "${REPO_ROOT}" ]] && [[ -d "${REPO_ROOT}/.git" ]]; then
+  echo "==> Refreshing git repo at ${REPO_ROOT} (branch: ${BRANCH})"
+  git -C "${REPO_ROOT}" fetch origin "${BRANCH}" --depth 1 2>/dev/null || \
+    git -C "${REPO_ROOT}" fetch origin "${BRANCH}" 2>/dev/null || true
+  git -C "${REPO_ROOT}" checkout "${BRANCH}" 2>/dev/null || true
+  git -C "${REPO_ROOT}" reset --hard "origin/${BRANCH}" 2>/dev/null || \
+    git -C "${REPO_ROOT}" pull --ff-only origin "${BRANCH}" 2>/dev/null || true
+  PATCH_ROOT="${REPO_ROOT}/deploy/dpr-boq-ux-patch"
+fi
 
 if [[ ! -f "${PATCH_ROOT}/static/css/maxek-dashboard.css" ]]; then
   echo "==> Cloning patch repo to ${STAGING}"
-  if [[ "${STAGING}" == "/tmp/maxek-patch" ]] && [[ -d "${STAGING}" ]]; then
+  if [[ -d "${STAGING}" ]]; then
     echo "    Removing stale ${STAGING}"
     rm -rf "${STAGING}"
   fi
-  rm -rf "${STAGING}"
   if ! git clone --depth 1 --branch "${BRANCH}" "${REPO_URL}" "${STAGING}"; then
     echo "ERROR: git clone failed (rate limit?). Try again in a few minutes or copy files manually."
     exit 1
@@ -69,9 +80,17 @@ UI_FILES=(
   static/css/maxek-dashboard.css
   static/js/maxek-ui.js
   static/js/dpr-forms.js
+  static/js/accounts-expenses.js
+  static/js/petty-cash.js
   templates/base_maxek.html
   templates/dpr.html
   templates/revised_estimate.html
+  templates/accounts_expenses.html
+  templates/petty_cash.html
+)
+
+WORKFLOW_FILES=(
+  app.py
 )
 
 FULL_FILES=(
@@ -91,6 +110,9 @@ case "${MODE}" in
   ui)
     for f in "${UI_FILES[@]}"; do copy_file "${f}"; done
     ;;
+  workflow)
+    for f in "${UI_FILES[@]}" "${WORKFLOW_FILES[@]}"; do copy_file "${f}"; done
+    ;;
   full)
     for f in "${UI_FILES[@]}" "${FULL_FILES[@]}"; do copy_file "${f}"; done
     mkdir -p "${LIVE}/uploads/project_completion"
@@ -99,7 +121,7 @@ case "${MODE}" in
     copy_file templates/revised_estimate.html
   ;;
   *)
-    echo "Usage: $0 [ui|full|hotfix-re]"
+    echo "Usage: $0 [ui|workflow|full|hotfix-re]"
     exit 1
     ;;
 esac
@@ -127,7 +149,7 @@ if [[ "${STATUS}" != "active" ]]; then
   exit 1
 fi
 
-for path in /login /revised-estimate /toc-extension /project-completion /dpr_entry; do
+for path in /login /revised-estimate /toc-extension /project-completion /dpr_entry /petty_cash; do
   code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8000${path}" 2>/dev/null || echo 000)"
   echo "==> HTTP ${path} => ${code}"
 done

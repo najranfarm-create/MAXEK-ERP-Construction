@@ -3654,6 +3654,19 @@ def _petty_cash_timestamp():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _safe_int(value, default=None):
+    """Parse optional integer values without raising on empty strings."""
+    if value is None:
+        return default
+    text = str(value).strip()
+    if not text:
+        return default
+    try:
+        return int(text)
+    except (ValueError, TypeError):
+        return default
+
+
 def generate_petty_cash_request_number(db):
     year = datetime.now().strftime("%Y")
     prefix = f"PCR-{year}-"
@@ -3827,17 +3840,42 @@ def _petty_cash_can_delete_request(request_row):
     return False
 
 
+def _parse_petty_cash_purpose_lines():
+    """Aggregate purpose/amount table rows into purpose text and total amount."""
+    purpose_lines = request.form.getlist("purpose_line[]")
+    amount_lines = request.form.getlist("amount_line[]")
+    purposes = []
+    total = 0.0
+    for idx, raw_purpose in enumerate(purpose_lines):
+        purpose = (raw_purpose or "").strip()
+        raw_amount = amount_lines[idx] if idx < len(amount_lines) else "0"
+        try:
+            amount = float((raw_amount or "0").strip() or 0)
+        except ValueError:
+            amount = 0.0
+        if purpose or amount > 0:
+            purposes.append(purpose)
+            total += amount
+    return purposes, total
+
+
 def _parse_petty_cash_request_form():
+    purposes, line_total = _parse_petty_cash_purpose_lines()
+    purpose = request.form.get("purpose", "").strip()
+    required_amount = request.form.get("required_amount", "0").strip()
+    if purposes:
+        purpose = "; ".join(p for p in purposes if p) or purpose
+        required_amount = str(line_total) if line_total > 0 else required_amount
     return {
         "request_date": request.form.get("request_date", "").strip(),
-        "project_id": request.form.get("project_id") or None,
-        "staff_id": request.form.get("staff_id") or None,
+        "project_id": _safe_int(request.form.get("project_id")),
+        "staff_id": _safe_int(request.form.get("staff_id")),
         "staff_name": request.form.get("staff_name", "").strip(),
         "employee_code": request.form.get("employee_code", "").strip(),
         "department": request.form.get("department", "").strip(),
-        "purpose": request.form.get("purpose", "").strip(),
+        "purpose": purpose,
         "description": request.form.get("description", "").strip(),
-        "required_amount": request.form.get("required_amount", "0").strip(),
+        "required_amount": required_amount,
         "priority": request.form.get("priority", "Normal").strip() or "Normal",
         "remarks": request.form.get("remarks", "").strip(),
     }
@@ -13607,13 +13645,13 @@ def attendance():
     projects = get_attendance_project_options()
     trades = get_active_trades()
     designations = get_active_designations()
-    view_id = request.args.get("view")
-    edit_id = request.args.get("edit")
-    view_monthly_id = request.args.get("view_monthly", type=int)
-    edit_monthly_id = request.args.get("edit_monthly", type=int)
+    view_id = _safe_int(request.args.get("view"))
+    edit_id = _safe_int(request.args.get("edit"))
+    view_monthly_id = _safe_int(request.args.get("view_monthly"))
+    edit_monthly_id = _safe_int(request.args.get("edit_monthly"))
     attendance_mode = request.args.get("mode", "daily")
-    select_trade = request.args.get("select_trade", type=int)
-    select_designation = request.args.get("select_designation", type=int)
+    select_trade = _safe_int(request.args.get("select_trade"))
+    select_designation = _safe_int(request.args.get("select_designation"))
     subcontractor_nav = request.args.get("nav") == "subcontract"
     if subcontractor_nav:
         attendance_mode = "daily"
@@ -13762,7 +13800,7 @@ def petty_cash():
 
     if request.method == "POST":
         form_action = request.form.get("form_action", "save_draft").strip()
-        request_id = request.form.get("request_id", "").strip()
+        request_id = _safe_int(request.form.get("request_id"))
 
         if form_action == "delete_request":
             if not request_id:
@@ -13831,10 +13869,10 @@ def petty_cash():
                         (module_id, request_id, record_table),
                     ).fetchone()
                     if existing_req:
-                        resubmit_record(db, module_id, int(request_id), record_table, user_id)
+                        resubmit_record(db, module_id, request_id, record_table, user_id)
                     else:
                         create_approval_request(
-                            db, module_id, int(request_id), record_table, username, user_id,
+                            db, module_id, request_id, record_table, username, user_id,
                         )
                     flash("Request submitted for approval.")
                 else:
@@ -14122,7 +14160,7 @@ def petty_cash():
             return redirect(url_for("petty_cash", view=request_id))
 
     filter_status = request.args.get("status", "").strip()
-    filter_project = request.args.get("project_id", "").strip()
+    filter_project = _safe_int(request.args.get("project_id"))
     filter_q = request.args.get("q", "").strip()
     filter_date_from = request.args.get("date_from", "").strip()
     filter_date_to = request.args.get("date_to", "").strip()
@@ -14169,12 +14207,12 @@ def petty_cash():
         "SELECT department_name FROM departments WHERE status='Active' ORDER BY department_name"
     )
 
-    view_id = request.args.get("view")
-    edit_id = request.args.get("edit")
+    view_id = _safe_int(request.args.get("view"))
+    edit_id = _safe_int(request.args.get("edit"))
     show_new = request.args.get("new")
-    transfer_id = request.args.get("transfer")
-    expenses_id = request.args.get("expenses")
-    settle_id = request.args.get("settle")
+    transfer_id = _safe_int(request.args.get("transfer"))
+    expenses_id = _safe_int(request.args.get("expenses"))
+    settle_id = _safe_int(request.args.get("settle"))
 
     view_record = edit_record = transfer_record = expenses_record = settle_record = None
     expenses = transfers = attachments = []
@@ -20599,6 +20637,87 @@ def _accounts_projects():
     return query_db("SELECT id, project_name FROM projects ORDER BY project_name")
 
 
+def _accounts_projects_for_expense(db):
+    """Projects with codes and manager for expense/purchase entry auto-fill."""
+    _ensure_column(db, "projects", "project_code", "TEXT")
+    _ensure_column(db, "projects", "project_manager", "TEXT")
+    _ensure_column(db, "projects", "cost_center", "TEXT")
+    return query_db(
+        "SELECT id, project_name, project_code, project_manager, cost_center "
+        "FROM projects ORDER BY project_name"
+    )
+
+
+def _accounts_expense_bank_accounts(db):
+    accounts = []
+    for table in ("treasury_bank_accounts", "bank_accounts"):
+        if not _table_exists(db, table):
+            continue
+        try:
+            rows = db.execute(
+                f"SELECT id, account_name, bank_name, account_number "
+                f"FROM {table} ORDER BY account_name, bank_name"
+            ).fetchall()
+            for row in rows:
+                accounts.append(dict(row))
+        except Exception:
+            continue
+    return accounts
+
+
+def _accounts_recent_expense_vendors(db, limit=8):
+    if not _table_exists(db, "account_expenses"):
+        return []
+    rows = db.execute(
+        "SELECT vendor_name, MAX(id) AS last_id FROM account_expenses "
+        "WHERE vendor_name IS NOT NULL AND TRIM(vendor_name)!='' "
+        "GROUP BY vendor_name ORDER BY last_id DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    return [r["vendor_name"] for r in rows]
+
+
+def _accounts_recent_expense_projects(db, limit=8):
+    if not _table_exists(db, "account_expenses"):
+        return []
+    rows = db.execute(
+        "SELECT p.id, p.project_name, p.project_code, MAX(e.id) AS last_id "
+        "FROM account_expenses e "
+        "JOIN projects p ON e.project_id = p.id "
+        "GROUP BY p.id ORDER BY last_id DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _accounts_frequent_chart_heads(db, limit=8):
+    if not _table_exists(db, "account_expenses"):
+        return []
+    rows = db.execute(
+        "SELECT c.id, c.code, c.name, MAX(e.id) AS last_id "
+        "FROM account_expenses e "
+        "JOIN chart_accounts c ON e.chart_account_id = c.id "
+        "GROUP BY c.id ORDER BY last_id DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _expense_invoice_exists(db, vendor_name, invoice_number, exclude_id=None):
+    if not invoice_number or not _table_exists(db, "account_expenses"):
+        return False
+    sql = (
+        "SELECT id FROM account_expenses WHERE LOWER(TRIM(invoice_number))=LOWER(TRIM(?)) "
+        "AND LOWER(TRIM(vendor_name))=LOWER(TRIM(?))"
+    )
+    params = [invoice_number, vendor_name or ""]
+    if exclude_id:
+        sql += " AND id!=?"
+        params.append(int(exclude_id))
+    row = db.execute(sql, tuple(params)).fetchone()
+    return row is not None
+
+
 def _accounts_date_range():
     from_date = request.args.get("from_date", "").strip() or None
     to_date = request.args.get("to_date", "").strip() or None
@@ -20698,6 +20817,9 @@ def accounts_expenses():
         inline = _handle_add_chart_head_form(db, endpoint, "#expense-form", {"new": 1})
         if inline:
             return inline
+        inline_vendor = _handle_add_vendor_form(db, endpoint, "#expense-form", {"new": 1})
+        if inline_vendor:
+            return inline_vendor
         ctx = _module_edit_context(module_id, table, endpoint)
         if ctx[0] == "redirect":
             return redirect(ctx[1])
@@ -20740,14 +20862,16 @@ def accounts_expenses():
     edit_id = request.args.get("edit")
     view_record = edit_record = None
     wf_ctx = {}
-    if view_id:
-        view_record = load_account_expense(db, int(view_id))
+    view_id_int = _safe_int(view_id)
+    edit_id_int = _safe_int(edit_id)
+    if view_id_int:
+        view_record = load_account_expense(db, view_id_int)
         if view_record:
             wf_ctx = _workflow_view_context(
                 module_id, view_record["id"], table, view_record["approval_status"]
             )
-    elif edit_id:
-        edit_record = load_account_expense(db, int(edit_id))
+    elif edit_id_int:
+        edit_record = load_account_expense(db, edit_id_int)
         if edit_record:
             edit_role = get_edit_role_for_user(
                 db, session.get("user_id"), module_id,
@@ -20755,11 +20879,14 @@ def accounts_expenses():
             )
             if not edit_role:
                 flash("This record is locked and cannot be edited.")
-                return redirect(url_for(endpoint, view=edit_id))
+                return redirect(url_for(endpoint, view=edit_id_int))
             wf_ctx = {"edit_role": edit_role}
-    show_form = bool(request.args.get("new")) or edit_record
+    show_form = bool(request.args.get("new")) or edit_record or view_record
     rows = list_account_expenses(db)
-    chart_heads = list_chart_of_accounts(db)
+    chart_heads = list_expense_chart_heads(db)
+    _prepare_store_db(db)
+    vendors = list_vendors(db, active_only=True)
+    select_vendor = _safe_int(request.args.get("select_vendor"))
     return render_template(
         "accounts_expenses.html",
         rows=rows,
@@ -20768,20 +20895,30 @@ def accounts_expenses():
         show_form=show_form,
         chart_heads=chart_heads,
         chart_heads_json=chart_accounts_for_js(db),
-        projects=_accounts_projects(),
+        projects=_accounts_projects_for_expense(db),
+        vendors=vendors,
         petty_cash_options=list_settled_petty_cash(db),
+        bank_accounts=_accounts_expense_bank_accounts(db),
+        recent_vendors=_accounts_recent_expense_vendors(db),
+        recent_projects=_accounts_recent_expense_projects(db),
+        frequent_heads=_accounts_frequent_chart_heads(db),
         payment_sources=PAYMENT_SOURCES,
         payment_statuses=PAYMENT_STATUSES,
         gst_rates=GST_RATES,
         tds_sections=TDS_SECTIONS,
         default_date=datetime.now().strftime("%Y-%m-%d"),
-        prefill_head=request.args.get("head_id", type=int),
-        select_chart_head=request.args.get("select_chart_head", type=int),
+        prefill_head=_safe_int(request.args.get("head_id")),
+        select_chart_head=_safe_int(request.args.get("select_chart_head")),
+        select_vendor=select_vendor,
         account_types=ACCOUNT_TYPES,
+        next_vendor_code=generate_vendor_code(db),
+        vendor_types=VENDOR_TYPES,
         history=wf_ctx.get("history"),
         edit_role=wf_ctx.get("edit_role"),
         can_reopen=wf_ctx.get("can_reopen", False),
         approval_id=wf_ctx.get("approval_id"),
+        module_id=module_id,
+        delete_table=table,
     )
 
 
@@ -21526,6 +21663,38 @@ def api_accounts_petty_cash_balance(request_id):
     db = get_db()
     _prepare_accounts_db(db)
     return jsonify({"balance": get_petty_cash_balance(db, request_id)})
+
+
+@app.route("/api/accounts/expense-check-invoice")
+@login_required
+def api_accounts_expense_check_invoice():
+    db = get_db()
+    _prepare_accounts_db(db)
+    vendor = request.args.get("vendor", "").strip()
+    invoice = request.args.get("invoice", "").strip()
+    exclude_id = request.args.get("exclude_id", type=int)
+    if not invoice:
+        return jsonify({"duplicate": False})
+    duplicate = _expense_invoice_exists(db, vendor, invoice, exclude_id=exclude_id)
+    return jsonify({"duplicate": duplicate})
+
+
+@app.route("/api/projects/<int:project_id>/expense-context")
+@login_required
+def api_project_expense_context(project_id):
+    db = get_db()
+    _ensure_column(db, "projects", "project_code", "TEXT")
+    _ensure_column(db, "projects", "project_manager", "TEXT")
+    _ensure_column(db, "projects", "cost_center", "TEXT")
+    row = query_db(
+        "SELECT id, project_name, project_code, project_manager, cost_center "
+        "FROM projects WHERE id=?",
+        (project_id,),
+        one=True,
+    )
+    if not row:
+        return jsonify({"error": "Not found"}), 404
+    return jsonify(dict(row))
 
 
 @app.route("/api/accounts/unpaid-expenses")
@@ -22288,10 +22457,10 @@ def timesheet():
     projects = get_attendance_project_options()
     trades = get_active_trades()
     designations = get_active_designations()
-    select_trade = request.args.get("select_trade", type=int)
-    select_designation = request.args.get("select_designation", type=int)
-    view_id = request.args.get("view")
-    edit_id = request.args.get("edit")
+    select_trade = _safe_int(request.args.get("select_trade"))
+    select_designation = _safe_int(request.args.get("select_designation"))
+    view_id = _safe_int(request.args.get("view"))
+    edit_id = _safe_int(request.args.get("edit"))
     view_record = edit_record = None
     edit_worker_ctx = {"staff_type": "", "subcontractor_id": ""}
     wf_ctx = {}
@@ -25751,7 +25920,7 @@ def employee_timesheets_form():
     db = get_db()
     _prepare_employee_timesheet_db(db)
     if request.method == "POST":
-        edit_id = request.form.get("timesheet_id", type=int)
+        edit_id = _safe_int(request.form.get("timesheet_id"))
         year_month_saved = (request.form.get("year_month") or "").strip()
         project_id_saved = (request.form.get("project_id") or "").strip()
         try:
@@ -25776,8 +25945,8 @@ def employee_timesheets_form():
             flash(f"Could not save timesheet — database schema needs an update. ({exc})")
             return redirect(request.referrer or url_for("employee_timesheets_form", new=1))
 
-    view_id = request.args.get("view", type=int)
-    edit_id = request.args.get("edit", type=int)
+    view_id = _safe_int(request.args.get("view"))
+    edit_id = _safe_int(request.args.get("edit"))
     view_record = edit_record = None
     day_rows: list[dict] = []
     if view_id:
@@ -25799,7 +25968,7 @@ def employee_timesheets_form():
     today_ym = datetime.now().strftime("%Y-%m")
     today_day_num = datetime.now().day if not edit_record else None
     preserve_ym = request.args.get("year_month", "").strip()
-    preserve_project_id = request.args.get("project_id", type=int)
+    preserve_project_id = _safe_int(request.args.get("project_id"))
     return render_template(
         "employee_timesheet_form.html",
         view_record=view_record,
