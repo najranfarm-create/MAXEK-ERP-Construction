@@ -69,9 +69,15 @@ UI_FILES=(
   static/css/maxek-dashboard.css
   static/js/maxek-ui.js
   static/js/dpr-forms.js
+  static/js/accounts-expenses.js
   templates/base_maxek.html
   templates/dpr.html
   templates/revised_estimate.html
+  templates/accounts_expenses.html
+)
+
+WORKFLOW_FILES=(
+  app.py
 )
 
 FULL_FILES=(
@@ -91,6 +97,9 @@ case "${MODE}" in
   ui)
     for f in "${UI_FILES[@]}"; do copy_file "${f}"; done
     ;;
+  workflow)
+    for f in "${UI_FILES[@]}" "${WORKFLOW_FILES[@]}"; do copy_file "${f}"; done
+    ;;
   full)
     for f in "${UI_FILES[@]}" "${FULL_FILES[@]}"; do copy_file "${f}"; done
     mkdir -p "${LIVE}/uploads/project_completion"
@@ -99,7 +108,7 @@ case "${MODE}" in
     copy_file templates/revised_estimate.html
   ;;
   *)
-    echo "Usage: $0 [ui|full|hotfix-re]"
+    echo "Usage: $0 [ui|workflow|full|hotfix-re]"
     exit 1
     ;;
 esac

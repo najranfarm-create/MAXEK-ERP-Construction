@@ -8415,3 +8415,317 @@
   min-width: 200px;
   max-width: 320px;
 }
+
+/* Expense / Purchase Entry */
+.maxek-layout .expense-entry-module .erp-expense-list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: var(--bg-form-card, #151d2e);
+  border: 1px solid var(--border-form, #2a3548);
+  border-radius: 10px;
+}
+
+.maxek-layout .expense-entry-module .erp-sub-toolbar-primary,
+.maxek-layout .expense-entry-module .erp-sub-toolbar-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.maxek-layout .expense-entry-module .erp-sub-toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border-form, #2a3548);
+  margin: 0 4px;
+}
+
+.maxek-layout .expense-entry-panel .expense-entry-layout {
+  display: block;
+}
+
+.maxek-layout .expense-form-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 20px;
+  margin-bottom: 16px;
+}
+
+.maxek-layout .expense-form-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.maxek-layout .expense-head-row {
+  margin-bottom: 12px;
+  align-items: end;
+}
+
+.maxek-layout .expense-head-actions {
+  justify-content: flex-end;
+}
+
+.maxek-layout .expense-project-meta,
+.maxek-layout .expense-vendor-meta {
+  margin-top: -4px;
+}
+
+.maxek-layout .expense-vendor-create {
+  align-self: flex-start;
+  margin-top: -6px;
+}
+
+.maxek-layout .expense-payment-details {
+  padding: 10px 12px;
+  border: 1px solid var(--border-form, #2a3548);
+  border-radius: 8px;
+  background: rgba(15, 24, 41, 0.45);
+}
+
+.maxek-layout .expense-summary-card {
+  margin-top: 8px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-form, #2a3548);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.55) 0%, rgba(15, 23, 42, 0.85) 100%);
+}
+
+.maxek-layout .expense-summary-card__title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #94a3b8);
+}
+
+.maxek-layout .expense-summary-card__list {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.maxek-layout .expense-summary-card__list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.maxek-layout .expense-summary-card__list dt {
+  margin: 0;
+  color: var(--text-muted, #94a3b8);
+}
+
+.maxek-layout .expense-summary-card__list dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-main, #e2e8f0);
+}
+
+.maxek-layout .expense-summary-card__grand {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-form, #2a3548);
+  font-size: 14px;
+}
+
+.maxek-layout .expense-summary-card__grand dd {
+  color: #4ade80;
+}
+
+.maxek-layout .expense-quick-picks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.maxek-layout .expense-quick-picks__group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.maxek-layout .expense-quick-picks__label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+  width: 100%;
+}
+
+.maxek-layout .erp-chip {
+  border: 1px solid var(--border-form, #334155);
+  background: rgba(15, 23, 42, 0.6);
+  color: var(--text-main, #cbd5e1);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.maxek-layout .erp-chip:hover {
+  border-color: rgba(227, 6, 19, 0.45);
+  background: rgba(227, 6, 19, 0.12);
+}
+
+.maxek-layout .expense-lines-section {
+  margin-top: 8px;
+}
+
+.maxek-layout .expense-lines-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.maxek-layout .expense-lines-scroll {
+  max-height: none;
+  overflow-x: auto;
+}
+
+.maxek-layout .expense-lines-table {
+  min-width: 720px;
+  font-size: 13px;
+}
+
+.maxek-layout .expense-lines-table th,
+.maxek-layout .expense-lines-table td {
+  padding: 6px 5px;
+  vertical-align: middle;
+}
+
+.maxek-layout .expense-lines-table .col-sl {
+  width: 2rem;
+  text-align: center;
+  color: var(--text-muted, #94a3b8);
+}
+
+.maxek-layout .expense-lines-table input,
+.maxek-layout .expense-lines-table select {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.maxek-layout .expense-lines-totals td {
+  border-top: 2px solid var(--border-form, #334155);
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.maxek-layout .expense-dropzone {
+  position: relative;
+  border: 1px dashed var(--border-form, #475569);
+  border-radius: 8px;
+  padding: 14px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.maxek-layout .expense-dropzone.is-dragover {
+  border-color: rgba(227, 6, 19, 0.55);
+  background: rgba(227, 6, 19, 0.08);
+}
+
+.maxek-layout .expense-dropzone input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.maxek-layout .expense-dropzone-ui {
+  pointer-events: none;
+  color: var(--text-muted, #94a3b8);
+  font-size: 12px;
+}
+
+.maxek-layout .expense-dropzone-ui i {
+  display: block;
+  font-size: 20px;
+  margin-bottom: 6px;
+}
+
+.maxek-layout .expense-attachment-preview {
+  margin-top: 8px;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.maxek-layout .expense-invoice-hint.is-error {
+  color: #f87171;
+  font-size: 11px;
+}
+
+.maxek-layout .expense-form-actions {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-form, #2a3548);
+}
+
+.maxek-layout .expense-modal {
+  border: 1px solid var(--border-form, #334155);
+  border-radius: 12px;
+  padding: 0;
+  background: var(--bg-form-card, #151d2e);
+  color: var(--text-main, #e2e8f0);
+  max-width: 480px;
+  width: calc(100% - 2rem);
+}
+
+.maxek-layout .expense-modal::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.maxek-layout .expense-modal-form {
+  padding: 16px 18px;
+}
+
+.maxek-layout .expense-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.maxek-layout .expense-modal__header h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.maxek-layout .expense-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+@media (max-width: 1100px) {
+  .maxek-layout .expense-form-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .maxek-layout .expense-entry-module .erp-expense-list-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .maxek-layout .expense-lines-table {
+    min-width: 640px;
+  }
+}
