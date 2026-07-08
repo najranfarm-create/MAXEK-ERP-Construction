@@ -30,6 +30,10 @@ PATCH_ROOT="${SCRIPT_DIR}/dpr-boq-ux-patch"
 
 if [[ ! -f "${PATCH_ROOT}/static/css/maxek-dashboard.css" ]]; then
   echo "==> Cloning patch repo to ${STAGING}"
+  if [[ "${STAGING}" == "/tmp/maxek-patch" ]] && [[ -d "${STAGING}" ]]; then
+    echo "    Removing stale ${STAGING}"
+    rm -rf "${STAGING}"
+  fi
   rm -rf "${STAGING}"
   if ! git clone --depth 1 --branch "${BRANCH}" "${REPO_URL}" "${STAGING}"; then
     echo "ERROR: git clone failed (rate limit?). Try again in a few minutes or copy files manually."
