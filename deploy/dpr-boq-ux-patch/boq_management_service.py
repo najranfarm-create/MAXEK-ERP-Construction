@@ -353,6 +353,7 @@ def compute_balance_quantity(quantity: float, executed_quantity: float) -> float
 
 
 def enrich_boq_item_row(item: dict[str, Any]) -> dict[str, Any]:
+    item = _row_dict(item)
     qty = _float(item.get("quantity"))
     executed = _float(item.get("executed_quantity"))
     item = dict(item)
