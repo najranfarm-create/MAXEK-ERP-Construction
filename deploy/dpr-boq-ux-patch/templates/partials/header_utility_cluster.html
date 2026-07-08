@@ -1,0 +1,120 @@
+{# Shared header controls — standard ERP toolbar cluster #}
+<div class="header-utility-cluster user-status-cluster">
+  <div class="header-meta-group">
+    <div
+      id="header-datetime"
+      class="header-datetime"
+      data-timezone="{{ app_timezone|default('Asia/Kolkata') }}"
+      title="Current date and time"
+    >{{ timestamp }}</div>
+
+    <div class="header-language-menu" data-language-dropdown>
+      <button
+        type="button"
+        class="header-language-toggle"
+        data-language-toggle
+        aria-expanded="false"
+        aria-haspopup="listbox"
+        title="Interface language"
+      >
+        <i class="fa-solid fa-language" aria-hidden="true"></i>
+        <span data-language-current>{{ (session.get('language') or 'en')|upper }}</span>
+        <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+      </button>
+      <div class="header-language-panel" hidden role="listbox" aria-label="Interface language">
+        <button type="button" class="header-language-option{% if (session.get('language') or 'en') == 'en' %} is-active{% endif %}" data-language-value="en" role="option">EN — English</button>
+        <button type="button" class="header-language-option{% if session.get('language') == 'hi' %} is-active{% endif %}" data-language-value="hi" role="option">HI — Hindi</button>
+        <button type="button" class="header-language-option{% if session.get('language') == 'ar' %} is-active{% endif %}" data-language-value="ar" role="option">AR — Arabic</button>
+        <button type="button" class="header-language-option{% if session.get('language') == 'ml' %} is-active{% endif %}" data-language-value="ml" role="option">ML — Malayalam</button>
+      </div>
+      <select class="header-language-select sr-only" data-language-select aria-hidden="true" tabindex="-1">
+        <option value="en"{% if (session.get('language') or 'en') == 'en' %} selected{% endif %}>EN</option>
+        <option value="hi"{% if session.get('language') == 'hi' %} selected{% endif %}>HI</option>
+        <option value="ar"{% if session.get('language') == 'ar' %} selected{% endif %}>AR</option>
+        <option value="ml"{% if session.get('language') == 'ml' %} selected{% endif %}>ML</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="header-icon-group">
+    <div class="header-notif-menu" data-notif-dropdown>
+      <button type="button" class="header-icon-btn" data-notif-toggle title="Notifications" aria-expanded="false" aria-haspopup="true">
+        <i class="fa-regular fa-bell"></i>
+        {% if notification_count %}<span class="header-badge">{{ notification_count }}</span>{% endif %}
+      </button>
+      <div class="header-notif-panel" hidden role="menu" aria-label="Recent notifications">
+        <div class="header-notif-panel-head">
+          <strong>Notifications</strong>
+          {% if notification_count %}<span class="header-notif-count">{{ notification_count }} new</span>{% endif %}
+        </div>
+        <div class="header-notif-list">
+          {% for note in user_notifications|default([]) %}
+          <a class="header-notif-item{% if not note.get('is_read') %} is-unread{% endif %}" href="{{ url_for('notifications') }}" role="menuitem">
+            <span>{{ note.get('title') or note.get('message') or 'Notification' }}</span>
+            {% if note.get('created_at') %}<small>{{ note.created_at }}</small>{% endif %}
+          </a>
+          {% else %}
+          <p class="header-notif-empty">No new notifications</p>
+          {% endfor %}
+        </div>
+        <a class="header-notif-view-all" href="{{ url_for('notifications') }}">View all</a>
+      </div>
+    </div>
+
+    <a class="header-icon-btn" href="{{ url_for('approvals') }}" title="Pending Approvals">
+      <i class="fa-solid fa-clipboard-check"></i>
+      {% if approval_total %}<span class="header-badge">{{ approval_total }}</span>{% endif %}
+    </a>
+
+    <div class="header-quick-actions" data-quick-actions>
+      <button type="button" class="header-icon-btn" data-quick-actions-toggle title="Quick Actions" aria-expanded="false">
+        <i class="fa-solid fa-bolt"></i>
+      </button>
+      <div class="header-quick-menu" hidden>
+        <a href="{{ safe_url_for('dpr_entry') }}"><i class="fa-solid fa-clipboard-list"></i> New DPR</a>
+        <a href="{{ safe_url_for('material_request') }}"><i class="fa-solid fa-box"></i> Material Request</a>
+        <a href="{{ safe_url_for('purchase_orders') }}"><i class="fa-solid fa-file-invoice"></i> Purchase Order</a>
+        <a href="{{ safe_url_for('accounts_payments') }}"><i class="fa-solid fa-money-bill-transfer"></i> Payment Voucher</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="maxek-appearance-switcher" data-appearance-switcher>
+    <button type="button" class="header-icon-btn" data-appearance-toggle title="Dashboard colour theme" aria-expanded="false" aria-haspopup="true">
+      <i class="fa-solid fa-palette"></i>
+      <span class="header-btn-label">Design</span>
+    </button>
+    <div class="maxek-appearance-menu" hidden role="menu" aria-label="Dashboard colour theme">
+      <p class="maxek-appearance-section-label">Dashboard colour (applies everywhere)</p>
+      <button type="button" class="maxek-appearance-option" data-theme-id="command-dark" role="menuitem">
+        <span class="maxek-theme-swatch maxek-theme-swatch--command-dark" aria-hidden="true"></span>
+        Command Dark
+      </button>
+      <button type="button" class="maxek-appearance-option" data-theme-id="pro-light" role="menuitem">
+        <span class="maxek-theme-swatch maxek-theme-swatch--pro-light" aria-hidden="true"></span>
+        Pro Light
+      </button>
+      <button type="button" class="maxek-appearance-option" data-theme-id="ultra-color" role="menuitem">
+        <span class="maxek-theme-swatch maxek-theme-swatch--ultra-color" aria-hidden="true"></span>
+        Ultra Color
+      </button>
+      <button type="button" class="maxek-appearance-option maxek-appearance-reset" data-theme-reset role="menuitem">
+        Restore default colours
+      </button>
+    </div>
+  </div>
+
+  <a class="header-icon-btn" href="{{ url_for('settings') }}" title="Settings">
+    <i class="fa-solid fa-gear"></i>
+  </a>
+
+  <div class="profile-chip" title="User profile">
+    <div class="admin-avatar">{{ admin_initial }}</div>
+    <span class="profile-chip-name">{{ welcome_name or session.get('employee_name') or session.get('username') or 'Administrator' }}</span>
+  </div>
+
+  <a class="header-logout-btn" href="{{ url_for('logout') }}" title="Logout" aria-label="Logout">
+    <i class="fa-solid fa-right-from-bracket"></i>
+    <span>Logout</span>
+  </a>
+</div>

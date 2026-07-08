@@ -1,0 +1,24 @@
+{# Sub-tab header: Entry | Saved Timesheet | Monthly Attendance #}
+{% set tab_nav = attendance_nav_query or {} %}
+<div class="erp-form-card erp-form-card--tabs attendance-module-tabs" data-attendance-tabs>
+  <nav class="erp-tab-bar attendance-module-tab-bar" aria-label="Attendance views">
+    <a
+      href="{{ url_for('attendance', tab='entry', **tab_nav) }}#add-attendance"
+      class="erp-tab{% if attendance_tab == 'entry' %} active{% endif %}"
+      data-attendance-tab-link="entry"
+    >Entry</a>
+    <a
+      href="{{ url_for('attendance', tab='saved', **tab_nav) }}#attendance-saved-list"
+      class="erp-tab{% if attendance_tab == 'saved' %} active{% endif %}"
+      data-attendance-tab-link="saved"
+    >Saved Timesheet</a>
+    {% if not subcontractor_nav %}
+    <a
+      href="{{ url_for('attendance', tab='monthly', **tab_nav) }}#monthly-attendance"
+      class="erp-tab{% if attendance_tab == 'monthly' %} active{% endif %}"
+      data-attendance-tab-link="monthly"
+    >Monthly Attendance</a>
+    {% endif %}
+  </nav>
+</div>
+<script src="{{ url_for('static', filename='js/attendance-module-tabs.js') }}?v=20260708-att-tabs" defer></script>

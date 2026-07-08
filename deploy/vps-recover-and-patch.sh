@@ -45,13 +45,43 @@ fi
 
 # 3) Copy UI files
 echo "==> Copying patch files"
+
+# Restore production settings.html if a UI patch backup exists (fixes /settings 500 after template overwrite)
+SETTINGS_TPL="${LIVE}/templates/settings.html"
+SETTINGS_BAK="$(ls -t "${SETTINGS_TPL}".bak-* 2>/dev/null | head -1 || true)"
+if [[ -n "${SETTINGS_BAK}" ]]; then
+  cp -a "${SETTINGS_BAK}" "${SETTINGS_TPL}"
+  echo "  OK restored settings.html from backup"
+fi
+
+# Optional: restore production approvals.html when RESTORE_APPROVALS_TEMPLATE=1
+APPROVALS_TPL="${LIVE}/templates/approvals.html"
+APPROVALS_BAK="$(ls -t "${APPROVALS_TPL}".bak-* 2>/dev/null | head -1 || true)"
+if [[ -n "${APPROVALS_BAK}" ]] && [[ "${RESTORE_APPROVALS_TEMPLATE:-0}" == "1" ]]; then
+  cp -a "${APPROVALS_BAK}" "${APPROVALS_TPL}"
+  echo "  OK restored approvals.html from backup"
+fi
+
 for f in \
   static/css/maxek-dashboard.css \
+  static/css/maxek-pro-dashboard.css \
   static/js/maxek-ui.js \
+  static/js/maxek-pro-dashboard.js \
   static/js/dpr-forms.js \
   templates/base_maxek.html \
   templates/dpr.html \
-  templates/revised_estimate.html
+  templates/revised_estimate.html \
+  templates/partials/header_utility_cluster.html \
+  templates/partials/dashboard_shell_header.html \
+  templates/partials/dashboard_shell_module_header.html \
+  templates/partials/dashboard_shell_sidebar.html \
+  templates/partials/shell_flash_and_title.html \
+  templates/partials/attendance_module_tabs.html \
+  templates/approvals.html \
+  static/js/approvals-bulk.js \
+  static/js/attendance-module-tabs.js \
+  templates/partials/petty_cash_line_items.html \
+  static/js/petty-cash-lines.js
 do
   src="${PATCH}/${f}"
   dst="${LIVE}/${f}"
@@ -75,6 +105,14 @@ fi
 
 if [[ -f "${LIVE}/templates/login.html.working-20260707" ]]; then
   cp "${LIVE}/templates/login.html.working-20260707" "${LIVE}/templates/login.html"
+fi
+
+if [[ -f "${STAGING}/deploy/inject-attendance-tabs.sh" ]]; then
+  LIVE="${LIVE}" bash "${STAGING}/deploy/inject-attendance-tabs.sh"
+fi
+
+if [[ -f "${STAGING}/deploy/inject-petty-cash-lines.sh" ]]; then
+  LIVE="${LIVE}" bash "${STAGING}/deploy/inject-petty-cash-lines.sh"
 fi
 
 # 5) Restart + diagnose

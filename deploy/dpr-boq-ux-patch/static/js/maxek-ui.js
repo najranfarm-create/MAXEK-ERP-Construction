@@ -1503,4 +1503,194 @@ document.addEventListener('DOMContentLoaded', function () {
     show: showDataEntryPanel,
     hide: hideDataEntryPanel,
   };
+
+  function initLanguageSwitcher() {
+    var root = document.querySelector('[data-language-dropdown]');
+    var select = document.querySelector('[data-language-select]');
+    if (!root && !select) return;
+    var storageKey = 'maxek-ui-language';
+    var currentLabel = root ? root.querySelector('[data-language-current]') : null;
+    var menuApi = root
+      ? initDropdownMenu(root, '[data-language-toggle]', '.header-language-panel')
+      : null;
+
+    function applyLanguage(lang) {
+      var value = lang || 'en';
+      document.documentElement.lang = value;
+      if (select) {
+        select.value = value;
+      }
+      if (currentLabel) {
+        currentLabel.textContent = value.toUpperCase();
+      }
+      if (root) {
+        root.querySelectorAll('[data-language-value]').forEach(function (btn) {
+          var match = btn.getAttribute('data-language-value') === value;
+          btn.classList.toggle('is-active', match);
+          btn.setAttribute('aria-selected', match ? 'true' : 'false');
+        });
+      }
+      try {
+        localStorage.setItem(storageKey, value);
+      } catch (err) {
+        /* ignore */
+      }
+      fetch('/api/erp/dashboard-preferences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ language: value }),
+      }).catch(function () {
+        /* offline */
+      });
+    }
+
+    try {
+      var stored = localStorage.getItem(storageKey);
+      if (stored) {
+        applyLanguage(stored);
+      }
+    } catch (err) {
+      /* ignore */
+    }
+
+    if (root) {
+      root.querySelectorAll('[data-language-value]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          applyLanguage(button.getAttribute('data-language-value') || 'en');
+          if (menuApi && menuApi.closeMenu) {
+            menuApi.closeMenu();
+          }
+        });
+      });
+    }
+
+    if (select) {
+      select.addEventListener('change', function () {
+        applyLanguage(select.value || 'en');
+      });
+    }
+  }
+
+  function initDropdownMenu(root, toggleSelector, menuSelector) {
+    if (!root) return;
+    var toggle = root.querySelector(toggleSelector);
+    var menu = root.querySelector(menuSelector);
+    if (!toggle || !menu) return;
+
+    function closeMenu() {
+      menu.hidden = true;
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.classList.remove('is-active');
+    }
+
+    function openMenu() {
+      menu.hidden = false;
+      toggle.setAttribute('aria-expanded', 'true');
+      toggle.classList.add('is-active');
+    }
+
+    toggle.addEventListener('click', function (event) {
+      event.stopPropagation();
+      if (menu.hidden) {
+        openMenu();
+      } else {
+        closeMenu();
+      }
+    });
+
+    document.addEventListener('click', function (event) {
+      if (!root.contains(event.target)) {
+        closeMenu();
+      }
+    });
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') {
+        closeMenu();
+      }
+    });
+
+    return { closeMenu: closeMenu };
+  }
+
+  function initNotificationDropdown() {
+    initDropdownMenu(
+      document.querySelector('[data-notif-dropdown]'),
+      '[data-notif-toggle]',
+      '.header-notif-panel'
+    );
+  }
+
+  function initAppearanceSwitcher() {
+    var root = document.querySelector('[data-appearance-switcher]');
+    if (!root) return;
+    var menuApi = initDropdownMenu(root, '[data-appearance-toggle]', '.maxek-appearance-menu');
+    var THEME_STORAGE_KEY = 'maxek-ui-theme';
+    var DEFAULT_THEME = 'command-dark';
+
+    function markPaletteSelected(themeId) {
+      root.querySelectorAll('.maxek-appearance-option[data-theme-id]').forEach(function (btn) {
+        var match = btn.getAttribute('data-theme-id') === themeId;
+        btn.classList.toggle('is-selected', match);
+        btn.setAttribute('aria-checked', match ? 'true' : 'false');
+      });
+    }
+
+    function persistPaletteToServer(theme) {
+      fetch('/api/erp/dashboard-preferences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ ui_theme: theme }),
+      }).catch(function () {});
+    }
+
+    function resetDashboardColours() {
+      try {
+        localStorage.removeItem(THEME_STORAGE_KEY);
+        localStorage.removeItem('maxek_pro_theme');
+        localStorage.removeItem('maxek-dashboard-layout-theme');
+      } catch (err) {
+        /* ignore */
+      }
+      if (window.MaxekTheme) {
+        window.MaxekTheme.apply(DEFAULT_THEME);
+        persistPaletteToServer(DEFAULT_THEME);
+        markPaletteSelected(DEFAULT_THEME);
+      }
+      if (window.maxekProTheme) {
+        window.maxekProTheme.apply('midnight', { persist: false });
+      }
+      var layoutHost = document.querySelector('.pro-dash-dashboard-host');
+      if (layoutHost) {
+        layoutHost.setAttribute('data-dashboard-theme', 'default');
+      }
+      menuApi?.closeMenu();
+    }
+
+    if (window.MaxekTheme) {
+      markPaletteSelected(window.MaxekTheme.get());
+    }
+
+    root.querySelectorAll('.maxek-appearance-option').forEach(function (button) {
+      button.addEventListener('click', function () {
+        if (button.hasAttribute('data-theme-reset')) {
+          resetDashboardColours();
+          return;
+        }
+        var paletteTheme = button.getAttribute('data-theme-id');
+        if (paletteTheme && window.MaxekTheme) {
+          var next = window.MaxekTheme.apply(paletteTheme);
+          persistPaletteToServer(next);
+          markPaletteSelected(next);
+        }
+        menuApi?.closeMenu();
+      });
+    });
+  }
+
+  initLanguageSwitcher();
+  initNotificationDropdown();
+  initAppearanceSwitcher();
 });
